@@ -25,20 +25,55 @@ interface SettingsModalProps {
   onUserUpdated?: (user: User) => void
 }
 
-const createSvgAvatar = (bg: string, emoji: string) => {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="${bg}"/><text x="50" y="55" font-size="44" text-anchor="middle" dominant-baseline="central">${emoji}</text></svg>`
+const createNetflixAvatar = (bg: string, customSvgContent?: string) => {
+  const content =
+    customSvgContent ||
+    `<circle cx="22.2" cy="32.5" r="5.6" fill="#ffffff"/><circle cx="82.2" cy="32.5" r="5.6" fill="#ffffff"/><path d="M 44.4 55.3 Q 66 65 86.8 54.4" stroke="#ffffff" stroke-width="4.4" stroke-linecap="round" fill="none"/>`
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="18" fill="${bg}"/>${content}</svg>`
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 }
 
 export const PRESET_AVATARS = [
-  { id: 'pres-1', label: 'Ejecutivo', emoji: '👨‍💼', url: createSvgAvatar('#1e3a8a', '👨‍💼') },
-  { id: 'pres-2', label: 'Profesional', emoji: '👩‍💼', url: createSvgAvatar('#581c87', '👩‍💼') },
-  { id: 'pres-3', label: 'Sistemas / TI', emoji: '👨‍💻', url: createSvgAvatar('#065f46', '👨‍💻') },
-  { id: 'pres-4', label: 'Desarrolladora', emoji: '👩‍💻', url: createSvgAvatar('#831843', '👩‍💻') },
-  { id: 'pres-5', label: 'Gestión', emoji: '🧑‍💼', url: createSvgAvatar('#312e81', '🧑‍💼') },
-  { id: 'pres-6', label: 'Seguridad', emoji: '🛡️', url: createSvgAvatar('#155e75', '🛡️') },
-  { id: 'pres-7', label: 'Institucional', emoji: '🏛️', url: createSvgAvatar('#334155', '🏛️') },
-  { id: 'pres-8', label: 'Destacado', emoji: '⭐', url: createSvgAvatar('#78350f', '⭐') },
+  { id: 'netflix-teal', label: 'Turquesa Clásico', url: createNetflixAvatar('#097782') },
+  { id: 'netflix-red', label: 'Rojo Netflix', url: createNetflixAvatar('#e50914') },
+  { id: 'netflix-blue', label: 'Azul Eléctrico', url: createNetflixAvatar('#0071eb') },
+  { id: 'netflix-yellow', label: 'Amarillo Sonriente', url: createNetflixAvatar('#ffb800') },
+  { id: 'netflix-green', label: 'Verde Esmeralda', url: createNetflixAvatar('#2bb859') },
+  { id: 'netflix-purple', label: 'Violeta Clásico', url: createNetflixAvatar('#8e44ad') },
+  { id: 'netflix-pink', label: 'Rosa Vibrante', url: createNetflixAvatar('#e91e63') },
+  { id: 'netflix-orange', label: 'Naranja Sunset', url: createNetflixAvatar('#ff6b00') },
+  {
+    id: 'netflix-wink',
+    label: 'El Guiño',
+    url: createNetflixAvatar(
+      '#e50914',
+      `<path d="M 16 35 Q 22.2 26 28.4 35" stroke="#ffffff" stroke-width="4.2" stroke-linecap="round" fill="none"/><circle cx="82.2" cy="32.5" r="5.6" fill="#ffffff"/><path d="M 44.4 55.3 Q 66 65 86.8 54.4" stroke="#ffffff" stroke-width="4.4" stroke-linecap="round" fill="none"/>`
+    ),
+  },
+  {
+    id: 'netflix-cool',
+    label: 'Con Gafas de Sol',
+    url: createNetflixAvatar(
+      '#ffb800',
+      `<path d="M 12 26 H 38 V 38 C 38 44 14 44 12 38 Z" fill="#141414"/><path d="M 62 26 H 88 V 38 C 88 44 64 44 62 38 Z" fill="#141414"/><rect x="38" y="29" width="24" height="4" fill="#141414"/><line x1="16" y1="30" x2="26" y2="30" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/><line x1="66" y1="30" x2="76" y2="30" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/><path d="M 44.4 58 Q 66 68 86.8 57" stroke="#ffffff" stroke-width="4.4" stroke-linecap="round" fill="none"/>`
+    ),
+  },
+  {
+    id: 'netflix-grin',
+    label: 'Gran Sonrisa',
+    url: createNetflixAvatar(
+      '#0071eb',
+      `<circle cx="22.2" cy="32.5" r="5.6" fill="#ffffff"/><circle cx="82.2" cy="32.5" r="5.6" fill="#ffffff"/><path d="M 40 50 Q 66 50 88 50 C 88 66 40 66 40 50 Z" fill="#ffffff"/>`
+    ),
+  },
+  {
+    id: 'netflix-dark',
+    label: 'Modo Oscuro',
+    url: createNetflixAvatar(
+      '#141414',
+      `<circle cx="22.2" cy="32.5" r="5.6" fill="#e50914"/><circle cx="82.2" cy="32.5" r="5.6" fill="#e50914"/><path d="M 44.4 55.3 Q 66 65 86.8 54.4" stroke="#e50914" stroke-width="4.4" stroke-linecap="round" fill="none"/>`
+    ),
+  },
 ]
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -273,9 +308,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* Preset Avatars Gallery */}
             <div className="pt-2 border-t border-slate-800/80">
               <p className="text-[11px] font-medium text-slate-400 mb-2">
-                O elige un avatar temático:
+                O elige un avatar clásico estilo Netflix:
               </p>
-              <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 sm:gap-2.5">
                 {PRESET_AVATARS.map((preset) => {
                   const isSelected = currentAvatarUrl === preset.url
                   return (
@@ -285,19 +320,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       onClick={() => handleSelectPreset(preset.url)}
                       disabled={isUpdatingAvatar}
                       title={preset.label}
-                      className={`relative flex flex-col items-center justify-center p-1 rounded-xl border transition cursor-pointer aspect-square ${
+                      className={`relative flex flex-col items-center justify-center p-1 sm:p-1.5 rounded-xl border transition cursor-pointer aspect-square ${
                         isSelected
-                          ? 'border-blue-500 bg-blue-500/20 shadow-sm shadow-blue-500/30'
-                          : 'border-slate-800 bg-slate-900/80 hover:border-slate-700 hover:bg-slate-800/60'
+                          ? 'border-red-500 bg-red-500/20 shadow-md shadow-red-500/30 ring-2 ring-red-500'
+                          : 'border-slate-800 bg-slate-900/80 hover:border-slate-700 hover:bg-slate-800/80 active:scale-95'
                       }`}
                     >
                       <img
                         src={preset.url}
                         alt={preset.label}
-                        className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover"
+                        className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg object-cover"
                       />
                       {isSelected && (
-                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white">
+                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-white shadow">
                           <Check className="h-2.5 w-2.5 stroke-[3]" />
                         </span>
                       )}
