@@ -8,6 +8,9 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const RENDERER_DIST = path.join(__dirname, '../dist')
 
+// Identificador de aplicación para que Windows 10/11 muestre notificaciones nativas con banner y sonido
+app.setAppUserModelId('com.institucional.mensajero')
+
 let win = null
 let tray = null
 let isQuitting = false
@@ -18,11 +21,12 @@ if (!gotTheLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    showAndFocusWindow()
+    bringToFront()
   })
 }
 
-function showAndFocusWindow() {
+// Función para traer la ventana a primer plano de forma garantizada en Windows
+function bringToFront() {
   if (!win) return
   if (!win.isVisible()) {
     win.show()
@@ -30,7 +34,11 @@ function showAndFocusWindow() {
   if (win.isMinimized()) {
     win.restore()
   }
+  // Forzar foco en Windows incluso si otra aplicación está activa
+  win.setAlwaysOnTop(true)
   win.focus()
+  win.setAlwaysOnTop(false)
+  win.flashFrame(true)
 }
 
 function createTray() {
@@ -44,7 +52,7 @@ function createTray() {
     {
       label: 'Abrir Mensajero Institucional',
       click: () => {
-        showAndFocusWindow()
+        bringToFront()
       },
     },
     { type: 'separator' },
@@ -62,11 +70,11 @@ function createTray() {
 
   // Clic o doble clic en el icono de la bandeja restaura la ventana
   tray.on('click', () => {
-    showAndFocusWindow()
+    bringToFront()
   })
 
   tray.on('double-click', () => {
-    showAndFocusWindow()
+    bringToFront()
   })
 }
 
@@ -117,23 +125,29 @@ function createWindow() {
 
 // IPC Handlers para Notificaciones y Barra de Tareas
 ipcMain.handle('notification:show', (_event, { title, body }) => {
+  const iconPath = path.join(__dirname, 'icon.ico')
+
+  // 1. Mostrar Notificación Nativa de Windows (Toast Banner en la esquina inferior derecha)
   if (Notification.isSupported()) {
     const notification = new Notification({
-      title,
-      body,
+      title: title || 'Mensajero Institucional',
+      body: body || 'Nuevo mensaje recibido',
+      icon: fs.existsSync(iconPath) ? iconPath : undefined,
       silent: false,
     })
     notification.on('click', () => {
-      showAndFocusWindow()
+      bringToFront()
       win?.flashFrame(false)
     })
     notification.show()
   }
 
-  // Hacer parpadear el icono si la ventana no está en foco o está oculta
-  if (win && (!win.isFocused() || !win.isVisible())) {
-    win.flashFrame(true)
-  }
+  // 2. Traer la aplicación a primer plano y hacer parpadear la barra de tareas
+  bringToFront()
+})
+
+ipcMain.handle('app:bring-to-front', () => {
+  bringToFront()
 })
 
 ipcMain.handle('app:minimize-to-tray', () => {
@@ -186,7 +200,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
-  showAndFocusWindow()
+  bringToFront()
 })
 
 app.whenReady().then(() => {
