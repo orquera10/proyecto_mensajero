@@ -96,6 +96,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     isInitialLoadRef.current = true
   }
 
+  // Evitar que la ventana global sufra scroll o desfase en navegadores móviles al cambiar de chat
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window.scrollX !== 0 || window.scrollY !== 0)) {
+      window.scrollTo(0, 0)
+    }
+  }, [activeUser?.id])
+
   useEffect(() => {
     const container = scrollContainerRef.current
     if (!container) return
@@ -108,10 +115,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       return
     }
 
-    // Al entrar al chat o cambiar de contacto: posicionar DIRECTAMENTE en el último mensaje
+    // Al entrar al chat o cambiar de contacto: posicionar DIRECTAMENTE en el último mensaje en el contenedor
     if (isInitialLoadRef.current && messages.length > 0) {
       container.scrollTop = container.scrollHeight
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
       isInitialLoadRef.current = false
 
       // Fallback para imágenes o fuentes diferidas
@@ -119,15 +125,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         if (container) {
           container.scrollTop = container.scrollHeight
         }
+        if (typeof window !== 'undefined' && (window.scrollX !== 0 || window.scrollY !== 0)) {
+          window.scrollTo(0, 0)
+        }
       }, 60)
       return
     }
 
-    // Cuando llega un mensaje nuevo: si el usuario está cerca del final o es su propio mensaje, scroll suave
+    // Cuando llega un mensaje nuevo: si el usuario está cerca del final o es su propio mensaje, scroll suave directo en el contenedor
     const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 300
     const lastMsg = messages[messages.length - 1]
     if (isNearBottom || lastMsg?.isMine) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
     }
   }, [messages, activeUser?.id])
 
@@ -260,7 +269,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className="relative flex flex-1 flex-col bg-slate-950 overflow-hidden"
+      className="relative flex flex-1 flex-col h-full bg-slate-950 overflow-hidden"
     >
       {/* Drag & Drop Visual Overlay */}
       {isDragging && (
@@ -281,7 +290,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       {(() => {
         const sectorLabel = getSectorLabel(activeUser)
         return (
-          <header className="flex min-h-16 items-center justify-between border-b border-slate-800 bg-slate-900/60 px-3 md:px-5 py-2 backdrop-blur">
+          <header className="flex min-h-16 items-center justify-between border-b border-slate-800 bg-slate-900/60 px-3 md:px-5 py-2 backdrop-blur shrink-0">
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
               {onBack && (
                 <button
@@ -497,7 +506,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       </div>
 
       {/* Message Input Box */}
-      <div className="p-2.5 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-900/60 backdrop-blur-md">
+      <div className="shrink-0 p-2.5 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-900/60 backdrop-blur-md">
         <form onSubmit={handleSend} className="flex items-end gap-2">
           {/* Hidden File Picker */}
           <input

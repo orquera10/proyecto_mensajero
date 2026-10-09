@@ -349,7 +349,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="flex h-full w-full shrink-0 flex-col border-r border-slate-800 bg-slate-900/95">
       {/* Search Header */}
-      <div className="p-4 border-b border-slate-800">
+      <div className="shrink-0 p-4 border-b border-slate-800">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
             <FolderKanban className="h-4 w-4 text-blue-400" />

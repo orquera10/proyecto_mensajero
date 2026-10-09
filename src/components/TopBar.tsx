@@ -40,7 +40,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   }
 
   return (
-    <header className="flex h-14 w-full items-center justify-between border-b border-slate-800 bg-slate-950 px-3 sm:px-4 select-none">
+    <header className="flex h-14 w-full shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-3 sm:px-4 select-none">
       {/* Brand */}
       <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 shadow-md shadow-blue-600/30">

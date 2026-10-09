@@ -751,7 +751,7 @@ export const App: React.FC = () => {
     activeUser && typingMap[activeUser.id] ? activeUser.display_name : null
 
   return (
-    <div className="flex h-[100dvh] w-full max-w-full flex-col bg-slate-950 overflow-hidden">
+    <div className="fixed inset-0 flex h-full w-full max-w-full flex-col bg-slate-950 overflow-hidden">
       {/* PWA Install Banner (Mobile & Web) - hidden on mobile when viewing active chat */}
       {showInstallBanner && (
         <div className={`z-40 shrink-0 ${activeUser ? 'hidden md:block' : 'block'}`}>
