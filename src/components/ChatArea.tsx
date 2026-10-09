@@ -24,6 +24,9 @@ interface ChatAreaProps {
   onTyping: () => void
   typingUser: string | null
   onBack?: () => void
+  hasMore?: boolean
+  isLoadingMore?: boolean
+  onLoadMore?: () => Promise<void>
 }
 
 const presenceColors: Record<PresenceStatus, string> = {
@@ -69,6 +72,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onTyping,
   typingUser,
   onBack,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
 }) => {
   const [inputText, setInputText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -76,16 +82,63 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const dragCounter = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  const isInitialLoadRef = useRef(true)
+  const prevActiveUserIdRef = useRef<number | null>(null)
+  const prevScrollHeightRef = useRef<number>(0)
 
   const serverUrl = apiService.getServerUrl()
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  // Track active user changes to trigger instant scroll to bottom
+  if (activeUser && activeUser.id !== prevActiveUserIdRef.current) {
+    prevActiveUserIdRef.current = activeUser.id
+    isInitialLoadRef.current = true
   }
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, typingUser])
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    // Si se cargaron mensajes anteriores hacia arriba, mantener la posición previa de lectura
+    if (prevScrollHeightRef.current > 0) {
+      const heightDiff = container.scrollHeight - prevScrollHeightRef.current
+      container.scrollTop = heightDiff
+      prevScrollHeightRef.current = 0
+      return
+    }
+
+    // Al entrar al chat o cambiar de contacto: posicionar DIRECTAMENTE en el último mensaje
+    if (isInitialLoadRef.current && messages.length > 0) {
+      container.scrollTop = container.scrollHeight
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+      isInitialLoadRef.current = false
+
+      // Fallback para imágenes o fuentes diferidas
+      setTimeout(() => {
+        if (container) {
+          container.scrollTop = container.scrollHeight
+        }
+      }, 60)
+      return
+    }
+
+    // Cuando llega un mensaje nuevo: si el usuario está cerca del final o es su propio mensaje, scroll suave
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 300
+    const lastMsg = messages[messages.length - 1]
+    if (isNearBottom || lastMsg?.isMine) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages, activeUser?.id])
+
+  // Scroll infinito hacia arriba al retroceder en el chat (como WhatsApp)
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const container = e.currentTarget
+    if (container.scrollTop < 60 && hasMore && !isLoadingMore && onLoadMore) {
+      prevScrollHeightRef.current = container.scrollHeight
+      onLoadMore()
+    }
+  }
 
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -299,7 +352,36 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       })()}
 
       {/* Messages List */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4"
+      >
+        {/* Older messages loader button/indicator */}
+        {hasMore && (
+          <div className="flex justify-center py-1">
+            <button
+              onClick={() => {
+                if (scrollContainerRef.current) {
+                  prevScrollHeightRef.current = scrollContainerRef.current.scrollHeight
+                }
+                onLoadMore?.()
+              }}
+              disabled={isLoadingMore}
+              className="flex items-center gap-1.5 rounded-full border border-slate-800 bg-slate-900/90 px-3.5 py-1 text-[11px] font-medium text-slate-300 shadow hover:bg-slate-800 hover:text-white transition cursor-pointer"
+            >
+              {isLoadingMore ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />
+                  <span>Cargando mensajes anteriores...</span>
+                </>
+              ) : (
+                <span>▲ Cargar mensajes anteriores</span>
+              )}
+            </button>
+          </div>
+        )}
+
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-xs text-slate-500">
             <p>No hay mensajes previos con este contacto.</p>

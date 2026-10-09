@@ -25,6 +25,8 @@ export const App: React.FC = () => {
   const [sectors, setSectors] = useState<Sector[]>([])
   const [activeUser, setActiveUser] = useState<User | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(false)
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
   const [myPresence, setMyPresence] = useState<PresenceStatus>('online')
   const [typingMap, setTypingMap] = useState<Record<number, NodeJS.Timeout>>({})
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -127,19 +129,26 @@ export const App: React.FC = () => {
 
         // Refresh active chat in case messages arrived while minimized or phone locked
         try {
-          const { messages: history } = await apiService.getChatHistory(activeId)
-          setMessages((prev) => {
-            if (
-              history.length !== prev.length ||
-              (history.length > 0 && history[history.length - 1].id !== prev[prev.length - 1]?.id)
-            ) {
-              return history.map((m) => ({
-                ...m,
-                isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
-              }))
-            }
-            return prev
-          })
+          const res = await apiService.getChatHistory(activeId, { limit: 20 })
+          if (res.messages && res.messages.length > 0) {
+            setMessages((prev) => {
+              if (prev.length === 0) {
+                return res.messages.map((m) => ({
+                  ...m,
+                  isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+                }))
+              }
+              const lastId = prev[prev.length - 1].id
+              const existingIds = new Set(prev.map((m) => m.id))
+              const newMsgs = res.messages
+                .filter((m) => m.id > lastId && !existingIds.has(m.id))
+                .map((m) => ({
+                  ...m,
+                  isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+                }))
+              return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev
+            })
+          }
         } catch {
           // Ignored
         }
@@ -161,19 +170,26 @@ export const App: React.FC = () => {
       if (document.visibilityState === 'visible' && activeUserRef.current) {
         const activeId = activeUserRef.current.id
         try {
-          const { messages: history } = await apiService.getChatHistory(activeId)
-          setMessages((prev) => {
-            if (
-              history.length !== prev.length ||
-              (history.length > 0 && history[history.length - 1].id !== prev[prev.length - 1]?.id)
-            ) {
-              return history.map((m) => ({
-                ...m,
-                isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
-              }))
-            }
-            return prev
-          })
+          const res = await apiService.getChatHistory(activeId, { limit: 20 })
+          if (res.messages && res.messages.length > 0) {
+            setMessages((prev) => {
+              if (prev.length === 0) {
+                return res.messages.map((m) => ({
+                  ...m,
+                  isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+                }))
+              }
+              const lastId = prev[prev.length - 1].id
+              const existingIds = new Set(prev.map((m) => m.id))
+              const newMsgs = res.messages
+                .filter((m) => m.id > lastId && !existingIds.has(m.id))
+                .map((m) => ({
+                  ...m,
+                  isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+                }))
+              return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev
+            })
+          }
         } catch {
           // Ignored
         }
@@ -502,22 +518,26 @@ export const App: React.FC = () => {
   const handleSelectUser = useCallback(
     async (user: User) => {
       setActiveUser(user)
+      setMessages([])
+      setHasMoreMessages(false)
+
       // Clear unread count for this user
       setUsers((prev) => {
-        const updated = prev.map((u) => (u.id === user.id ? { ...u, unreadCount: 0 } : u))
+        const updated = prev.map((u) => (Number(u.id) === Number(user.id) ? { ...u, unreadCount: 0 } : u))
         const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
         notificationService.updateUnreadTitle(totalUnread)
         return updated
       })
 
       try {
-        const { messages: history } = await apiService.getChatHistory(user.id)
+        const res = await apiService.getChatHistory(user.id, { limit: 40 })
         setMessages(
-          history.map((m) => ({
+          (res.messages || []).map((m) => ({
             ...m,
-            isMine: m.sender_id === currentUser?.id,
+            isMine: Number(m.sender_id) === Number(currentUser?.id),
           }))
         )
+        setHasMoreMessages(Boolean(res.hasMore))
         apiService.markAsRead(user.id)
         socketService.markAsRead(user.id)
       } catch (err) {
@@ -526,6 +546,39 @@ export const App: React.FC = () => {
     },
     [currentUser]
   )
+
+  // Load older messages when scrolling upwards (como WhatsApp)
+  const handleLoadMore = useCallback(async () => {
+    if (!activeUser || isLoadingMore || !hasMoreMessages || messages.length === 0) return
+    const oldestId = messages[0].id
+
+    try {
+      setIsLoadingMore(true)
+      const res = await apiService.getChatHistory(activeUser.id, {
+        before: oldestId,
+        limit: 30,
+      })
+
+      if (res.messages && res.messages.length > 0) {
+        const older = res.messages.map((m) => ({
+          ...m,
+          isMine: Number(m.sender_id) === Number(currentUser?.id),
+        }))
+
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id))
+          const filtered = older.filter((m) => !existingIds.has(m.id))
+          return [...filtered, ...prev]
+        })
+      }
+
+      setHasMoreMessages(Boolean(res.hasMore))
+    } catch (err) {
+      console.error('Error loading older messages:', err)
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [activeUser, isLoadingMore, hasMoreMessages, messages, currentUser])
 
   // Send Text Message
   const handleSendMessage = async (content: string) => {
@@ -679,88 +732,7 @@ export const App: React.FC = () => {
     }
   }, [loadInitialData, serverConfig.serverUrl])
 
-  // Pantalla de instalación obligatoria para versión móvil (PWA)
-  if (isMobileDevice && !isStandalone && !bypassInstallGate) {
-    return (
-      <div className="flex min-h-[100dvh] w-full flex-col items-center justify-between bg-slate-950 p-5 text-white select-none">
-        {/* Top Header */}
-        <div className="flex flex-col items-center text-center mt-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 shadow-xl shadow-blue-600/40 ring-4 ring-blue-500/20 mb-3 animate-pulse">
-            <ShieldCheck className="h-10 w-10 text-white" />
-          </div>
-          <h1 className="text-xl font-bold tracking-tight text-white uppercase">
-            Mensajero Institucional
-          </h1>
-          <p className="text-xs text-blue-400 font-medium mt-1">
-            Secretaría de Niñez, Adolescencia y Familia
-          </p>
-        </div>
 
-        {/* Main Card */}
-        <div className="w-full max-w-sm rounded-3xl border border-slate-800 bg-slate-900/90 p-5 shadow-2xl backdrop-blur my-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/20 text-blue-400 shrink-0">
-              <Smartphone className="h-6 w-6" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-white">Instalación Requerida</h2>
-              <p className="text-xs text-slate-400">Aplicación oficial para teléfonos</p>
-            </div>
-          </div>
-
-          <p className="text-xs text-slate-300 leading-relaxed mb-4">
-            Para usar el Mensajero en tu teléfono con <strong className="text-white">notificaciones en segundo plano</strong> y funcionamiento óptimo, debes instalar la aplicación en tu pantalla de inicio.
-          </p>
-
-          <div className="space-y-2 mb-5">
-            <div className="flex items-center gap-2.5 text-xs text-slate-300">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span>Alertas sonoras y vibración con pantalla apagada</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-xs text-slate-300">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span>Acceso directo desde el escritorio como WhatsApp</span>
-            </div>
-            <div className="flex items-center gap-2.5 text-xs text-slate-300">
-              <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span>Canal seguro y cifrado punto a punto</span>
-            </div>
-          </div>
-
-          {/* Action button */}
-          <button
-            onClick={handleInstallPWA}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3.5 px-4 font-semibold text-sm text-white shadow-lg shadow-blue-600/30 hover:bg-blue-500 active:scale-95 transition cursor-pointer"
-          >
-            <Download className="h-5 w-5" />
-            <span>Instalar Aplicación Ahora</span>
-          </button>
-
-          {/* Manual instructions fallback */}
-          {(showManualInstructions || !deferredPrompt) && (
-            <div className="mt-4 rounded-xl border border-blue-500/20 bg-blue-500/10 p-3 text-[11px] text-blue-200 leading-relaxed">
-              <p className="font-semibold text-white mb-1">¿Cómo instalar manualmente?</p>
-              <p>• <strong>En Android (Chrome):</strong> Pulsa los tres puntos (<strong>⋮</strong>) arriba a la derecha y selecciona <strong>"Instalar aplicación"</strong> o <strong>"Agregar a la pantalla principal"</strong>.</p>
-              <p className="mt-1">• <strong>En iPhone (Safari):</strong> Pulsa el botón Compartir y elige <strong>"Agregar a inicio"</strong>.</p>
-            </div>
-          )}
-        </div>
-
-        {/* Optional bypass link */}
-        <div className="text-center mb-2">
-          <button
-            onClick={() => {
-              sessionStorage.setItem('bypass_install_gate', 'true')
-              setBypassInstallGate(true)
-            }}
-            className="text-xs text-slate-500 hover:text-slate-300 underline underline-offset-4 transition cursor-pointer"
-          >
-            Continuar en el navegador web
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   // If not connected, show Login
   if (connectionStatus !== 'connected' || !currentUser) {
@@ -844,6 +816,9 @@ export const App: React.FC = () => {
             onTyping={handleTyping}
             typingUser={typingSender}
             onBack={() => setActiveUser(null)}
+            hasMore={hasMoreMessages}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={handleLoadMore}
           />
         </div>
       </div>

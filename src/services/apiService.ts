@@ -73,8 +73,17 @@ export const apiService = {
     return this.request<{ sectors: Sector[] }>('/api/sectors')
   },
 
-  async getChatHistory(otherUserId: number): Promise<{ messages: Message[] }> {
-    return this.request<{ messages: Message[] }>(`/api/messages/history/${otherUserId}`)
+  async getChatHistory(
+    otherUserId: number,
+    options?: { limit?: number; before?: number }
+  ): Promise<{ messages: Message[]; hasMore?: boolean }> {
+    const params = new URLSearchParams()
+    if (options?.limit) params.set('limit', String(options.limit))
+    if (options?.before) params.set('before', String(options.before))
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    return this.request<{ messages: Message[]; hasMore?: boolean }>(
+      `/api/messages/history/${otherUserId}${qs}`
+    )
   },
 
   async uploadFile(file: File): Promise<{

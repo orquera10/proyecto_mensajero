@@ -11,20 +11,36 @@ messageRouter.get('/history/:otherUserId', authenticateToken, async (req, res) =
   try {
     const currentUserId = req.user.id
     const otherUserId = parseInt(req.params.otherUserId, 10)
-    const limit = parseInt(req.query.limit || '100', 10)
+    const limit = parseInt(req.query.limit || '40', 10)
+    const beforeId = req.query.before ? parseInt(req.query.before, 10) : null
 
-    const { rows } = await query(
-      `SELECT m.*, u.display_name as sender_name, u.avatar_url as sender_avatar
-       FROM messages m
-       JOIN users u ON m.sender_id = u.id
-       WHERE (m.sender_id = ? AND m.receiver_id = ?)
-          OR (m.sender_id = ? AND m.receiver_id = ?)
-       ORDER BY m.created_at ASC
-       LIMIT ?`,
-      [currentUserId, otherUserId, otherUserId, currentUserId, limit]
-    )
+    let sql = `
+      SELECT m.*, u.display_name as sender_name, u.avatar_url as sender_avatar
+      FROM messages m
+      JOIN users u ON m.sender_id = u.id
+      WHERE ((m.sender_id = ? AND m.receiver_id = ?)
+         OR (m.sender_id = ? AND m.receiver_id = ?))
+    `
+    const params = [currentUserId, otherUserId, otherUserId, currentUserId]
 
-    res.json({ messages: rows })
+    if (beforeId) {
+      sql += ` AND m.id < ?`
+      params.push(beforeId)
+    }
+
+    sql += ` ORDER BY m.id DESC LIMIT ?`
+    params.push(limit)
+
+    const { rows } = await query(sql, params)
+    const messageRows = rows || []
+
+    // Reverse to chronological order (oldest to newest)
+    const messages = messageRows.slice().reverse()
+
+    res.json({
+      messages,
+      hasMore: messageRows.length === limit,
+    })
   } catch (err) {
     console.error('Error fetching chat history:', err)
     res.status(500).json({ error: 'Error al obtener historial de mensajes' })
