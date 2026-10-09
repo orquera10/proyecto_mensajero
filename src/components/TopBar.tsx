@@ -47,21 +47,21 @@ export const TopBar: React.FC<TopBarProps> = ({
           <ShieldCheck className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-xs font-bold uppercase tracking-wider text-white">
-            Mensajero Institucional
+          <h1 className="text-xs font-bold uppercase tracking-wider text-white truncate max-w-[120px] sm:max-w-none">
+            Mensajero
           </h1>
-          <p className="text-[10px] text-slate-400">Servidor Coolify</p>
+          <p className="text-[10px] text-slate-400 hidden sm:block">Institucional</p>
         </div>
       </div>
 
       {/* User Info & Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3">
         {/* Admin Dashboard Button (Only for Admins) */}
         {currentUser.role === 'admin' && (
           <button
             onClick={openAdminDashboard}
             title="Abrir Panel de Administración"
-            className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition cursor-pointer"
+            className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition cursor-pointer"
           >
             <LayoutDashboard className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Panel Admin</span>
@@ -72,12 +72,12 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="relative">
           <button
             onClick={() => setShowStatusMenu(!showStatusMenu)}
-            className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+            className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-slate-800 bg-slate-900 px-2 sm:px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 transition cursor-pointer max-w-[140px] sm:max-w-none"
           >
-            <span className={`h-2.5 w-2.5 rounded-full ${activeOption.color}`} />
-            <span className="font-medium">{currentUser.display_name}</span>
-            <span className="text-[11px] text-slate-400">({activeOption.label})</span>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${activeOption.color}`} />
+            <span className="font-medium truncate">{currentUser.display_name}</span>
+            <span className="hidden sm:inline text-[11px] text-slate-400">({activeOption.label})</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500" />
           </button>
 
           {showStatusMenu && (

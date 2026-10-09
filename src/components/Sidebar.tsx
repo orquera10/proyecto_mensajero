@@ -347,7 +347,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const onlineUsers = otherUsers.filter((u) => u.presence !== 'offline').length
 
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col border-r border-slate-800 bg-slate-900/95">
+    <aside className="flex h-full w-full shrink-0 flex-col border-r border-slate-800 bg-slate-900/95">
       {/* Search Header */}
       <div className="p-4 border-b border-slate-800">
         <div className="flex items-center justify-between mb-3">

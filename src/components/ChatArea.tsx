@@ -11,6 +11,7 @@ import {
   CheckCheck,
   UploadCloud,
   Star,
+  ArrowLeft,
 } from 'lucide-react'
 import type { User, Message, PresenceStatus } from '../types'
 import { apiService } from '../services/apiService'
@@ -22,6 +23,7 @@ interface ChatAreaProps {
   onSendFile: (file: File) => Promise<void>
   onTyping: () => void
   typingUser: string | null
+  onBack?: () => void
 }
 
 const presenceColors: Record<PresenceStatus, string> = {
@@ -53,6 +55,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onSendFile,
   onTyping,
   typingUser,
+  onBack,
 }) => {
   const [inputText, setInputText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -208,8 +211,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       )}
 
       {/* Contact Header */}
-      <header className="flex h-16 items-center justify-between border-b border-slate-800 bg-slate-900/50 px-6 backdrop-blur">
-        <div className="flex items-center gap-3">
+      <header className="flex h-16 items-center justify-between border-b border-slate-800 bg-slate-900/50 px-3 md:px-6 backdrop-blur">
+        <div className="flex items-center gap-2.5 md:gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="md:hidden -ml-1 rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer"
+              title="Volver a los contactos"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          )}
           <div className="relative">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400 font-bold text-sm border border-blue-500/20">
               {activeUser.display_name.charAt(0).toUpperCase()}

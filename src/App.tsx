@@ -543,23 +543,28 @@ export const App: React.FC = () => {
       {/* Main Container */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sectors and Users Sidebar */}
-        <Sidebar
-          users={users}
-          sectors={sectors}
-          activeUser={activeUser}
-          onSelectUser={handleSelectUser}
-          currentUserId={currentUser.id}
-        />
+        <div className={`h-full ${activeUser ? 'hidden md:flex' : 'flex w-full md:w-80'} shrink-0 flex-col`}>
+          <Sidebar
+            users={users}
+            sectors={sectors}
+            activeUser={activeUser}
+            onSelectUser={handleSelectUser}
+            currentUserId={currentUser.id}
+          />
+        </div>
 
         {/* Chat Area */}
-        <ChatArea
-          activeUser={activeUser}
-          messages={messages}
-          onSendMessage={handleSendMessage}
-          onSendFile={handleSendFile}
-          onTyping={handleTyping}
-          typingUser={typingSender}
-        />
+        <div className={`h-full flex-1 ${!activeUser ? 'hidden md:flex' : 'flex'}`}>
+          <ChatArea
+            activeUser={activeUser}
+            messages={messages}
+            onSendMessage={handleSendMessage}
+            onSendFile={handleSendFile}
+            onTyping={handleTyping}
+            typingUser={typingSender}
+            onBack={() => setActiveUser(null)}
+          />
+        </div>
       </div>
 
       {/* Settings Modal */}
