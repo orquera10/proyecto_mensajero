@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Cliente de mensajería institucional",
+  "author": "Secretaría de Niñez, Adolescencia y Familia",
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -18,22 +19,23 @@
     "appId": "com.institucional.mensajero",
     "productName": "Mensajero Institucional",
     "directories": {
-      "output": "dist-msi"
+      "output": "../mensajero_installers"
     },
     "files": [
       "dist/**/*",
       "electron/**/*"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
-          "target": "msi",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
         },
         {
-          "target": "nsis",
+          "target": "msi",
           "arch": [
             "x64"
           ]
