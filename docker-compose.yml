@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # Servidor Principal de Mensajería (Backend + WebSockets + Panel Admin + Web App)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-institucional_jwt_secret_super_seguro_2026}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-mensajero}:${POSTGRES_PASSWORD:-mensajero123}@postgres:5432/${POSTGRES_DB:-mensajero_db}
+      - DATA_DIR=/app/data
+      - UPLOAD_DIR=/app/data/uploads
+      - MAX_FILE_SIZE_MB=50
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      - postgres
+
+  # Base de Datos PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mensajero_db}
+      POSTGRES_USER: ${POSTGRES_USER:-mensajero}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mensajero123}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+volumes:
+  app_data:
+  pg_data:

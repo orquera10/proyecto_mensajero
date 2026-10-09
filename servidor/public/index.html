@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel de Administración - Mensajero Institucional</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased">
+
+  <!-- LOGIN SECTION -->
+  <div id="login-section" class="flex min-h-screen items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/90 p-8 shadow-2xl backdrop-blur-xl">
+      <div class="mb-6 text-center">
+        <div class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20 text-2xl">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <h1 class="text-xl font-bold text-white">Panel de Administración</h1>
+        <p class="text-xs text-slate-400 mt-1">Mensajero Institucional (Coolify Server)</p>
+      </div>
+
+      <div id="login-error" class="hidden mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-400"></div>
+
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Usuario Administrador</label>
+          <input type="text" id="login-username" value="admin" required class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Contraseña</label>
+          <input type="password" id="login-password" value="admin123" required class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+        <button type="submit" class="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 transition shadow-lg shadow-blue-600/30 cursor-pointer">
+          Ingresar al Panel
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- DASHBOARD SECTION -->
+  <div id="dashboard-section" class="hidden min-h-screen flex flex-col">
+    <!-- Topbar -->
+    <header class="h-16 border-b border-slate-800 bg-slate-900/80 px-6 flex items-center justify-between backdrop-blur sticky top-0 z-40">
+      <div class="flex items-center gap-3">
+        <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20">
+          <i class="fa-solid fa-server"></i>
+        </div>
+        <div>
+          <h2 class="text-sm font-bold text-white tracking-wide">MENSAJERO INSTITUCIONAL</h2>
+          <p class="text-[11px] text-slate-400">Servidor Node.js • Coolify</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <span id="admin-name" class="text-xs text-slate-300 font-medium"></span>
+        <button onclick="logout()" class="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:bg-rose-500/10 hover:text-rose-400 transition cursor-pointer">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          <span>Cerrar Sesión</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-6 max-w-7xl mx-auto w-full space-y-6">
+      
+      <!-- Stats Row -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-semibold uppercase tracking-wider">Sectores</span>
+            <i class="fa-solid fa-folder-tree text-blue-400 text-lg"></i>
+          </div>
+          <p id="stat-sectors" class="text-2xl font-bold text-white mt-2">--</p>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-semibold uppercase tracking-wider">Usuarios Totales</span>
+            <i class="fa-solid fa-users text-emerald-400 text-lg"></i>
+          </div>
+          <p id="stat-users" class="text-2xl font-bold text-white mt-2">--</p>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-semibold uppercase tracking-wider">Mensajes Totales</span>
+            <i class="fa-solid fa-comments text-indigo-400 text-lg"></i>
+          </div>
+          <p id="stat-messages" class="text-2xl font-bold text-white mt-2">--</p>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg">
+          <div class="flex items-center justify-between text-slate-400">
+            <span class="text-xs font-semibold uppercase tracking-wider">Archivos Adjuntos</span>
+            <i class="fa-solid fa-hard-drive text-amber-400 text-lg"></i>
+          </div>
+          <p id="stat-files" class="text-2xl font-bold text-white mt-2">-- MB</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex border-b border-slate-800 gap-2">
+        <button onclick="switchTab('conversations')" id="tab-btn-conversations" class="px-4 py-2.5 text-xs font-semibold text-blue-400 border-b-2 border-blue-500 transition cursor-pointer">
+          <i class="fa-solid fa-comments mr-1.5"></i> Conversaciones e Hilos
+        </button>
+        <button onclick="switchTab('audit-log')" id="tab-btn-audit-log" class="px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-slate-200 border-b-2 border-transparent transition cursor-pointer">
+          <i class="fa-solid fa-list-check mr-1.5"></i> Registro Global (Log)
+        </button>
+        <button onclick="switchTab('users')" id="tab-btn-users" class="px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-slate-200 border-b-2 border-transparent transition cursor-pointer">
+          <i class="fa-solid fa-users mr-1.5"></i> Gestión de Usuarios
+        </button>
+        <button onclick="switchTab('sectors')" id="tab-btn-sectors" class="px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-slate-200 border-b-2 border-transparent transition cursor-pointer">
+          <i class="fa-solid fa-sitemap mr-1.5"></i> Sectores / Departamentos
+        </button>
+      </div>
+
+      <!-- TAB: CONVERSATIONS GROUPED VIEW -->
+      <div id="tab-content-conversations" class="space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[640px]">
+          
+          <!-- Left: Conversation Pairs List -->
+          <div class="lg:col-span-4 flex flex-col rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden shadow-xl">
+            <div class="p-3.5 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-user-group text-blue-400"></i> Hilos de Conversación
+              </span>
+              <span id="conversations-total-badge" class="text-[11px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-400 font-medium">0 hilos</span>
+            </div>
+
+            <div id="conversations-list" class="flex-1 overflow-y-auto p-2 space-y-2">
+              <!-- Loaded dynamically -->
+            </div>
+          </div>
+
+          <!-- Right: Conversation Thread Viewer -->
+          <div class="lg:col-span-8 flex flex-col rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden shadow-xl">
+            
+            <!-- Thread Header -->
+            <div id="thread-header" class="h-16 px-5 border-b border-slate-800 bg-slate-950/80 flex items-center justify-between">
+              <div class="text-xs text-slate-400 italic">
+                Selecciona una conversación a la izquierda para auditar sus mensajes.
+              </div>
+            </div>
+
+            <!-- Thread Messages Area -->
+            <div id="thread-messages-body" class="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-950/40">
+              <div class="flex h-full flex-col items-center justify-center text-center text-xs text-slate-500">
+                <div class="h-12 w-12 rounded-2xl bg-slate-900 flex items-center justify-center text-slate-600 mb-2 border border-slate-800">
+                  <i class="fa-solid fa-comments text-lg"></i>
+                </div>
+                <span>Auditoría de Conversaciones Institucionales</span>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB: GLOBAL AUDIT LOG (FLAT TABLE) -->
+      <div id="tab-content-audit-log" class="hidden space-y-4">
+        <!-- Filter Header -->
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-lg flex flex-wrap gap-3 items-center justify-between">
+          <div class="flex flex-wrap gap-3 items-center flex-1">
+            <div class="relative min-w-[240px] flex-1">
+              <i class="fa-solid fa-search absolute left-3 top-3 text-slate-500 text-xs"></i>
+              <input
+                type="text"
+                id="audit-search"
+                placeholder="Buscar por texto o nombre de archivo..."
+                class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 pl-8 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <select id="audit-sender" class="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-300 focus:border-blue-500 focus:outline-none">
+              <option value="">Todos los remitentes</option>
+            </select>
+
+            <select id="audit-receiver" class="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-300 focus:border-blue-500 focus:outline-none">
+              <option value="">Todos los destinatarios</option>
+            </select>
+
+            <button onclick="loadAuditMessages()" class="rounded-xl bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition cursor-pointer">
+              <i class="fa-solid fa-filter mr-1"></i> Filtrar
+            </button>
+          </div>
+
+          <span id="audit-total-count" class="text-xs text-slate-400 font-medium bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+            0 mensajes registrados
+          </span>
+        </div>
+
+        <!-- Audit Table -->
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden shadow-xl">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950/70 border-b border-slate-800 text-slate-400 uppercase tracking-wider">
+              <tr>
+                <th class="px-4 py-3 w-40">Fecha y Hora</th>
+                <th class="px-4 py-3">Remitente</th>
+                <th class="px-4 py-3">Destinatario</th>
+                <th class="px-4 py-3">Contenido / Archivo</th>
+                <th class="px-4 py-3 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="audit-table-body" class="divide-y divide-slate-800/60 text-slate-300">
+              <!-- Loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: USERS -->
+      <div id="tab-content-users" class="hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-sm font-semibold text-white">Usuarios del Sistema</h3>
+          <button onclick="openCreateUserModal()" class="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-md shadow-blue-600/20 transition cursor-pointer">
+            <i class="fa-solid fa-user-plus"></i>
+            <span>Nuevo Usuario</span>
+          </button>
+        </div>
+
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden shadow-xl">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-950/70 border-b border-slate-800 text-slate-400 uppercase tracking-wider">
+              <tr>
+                <th class="px-4 py-3">Usuario</th>
+                <th class="px-4 py-3">Nombre Completo</th>
+                <th class="px-4 py-3">Sector</th>
+                <th class="px-4 py-3">Rol</th>
+                <th class="px-4 py-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="users-table-body" class="divide-y divide-slate-800/60 text-slate-300">
+              <!-- Loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: SECTORS -->
+      <div id="tab-content-sectors" class="hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-sm font-semibold text-white">Sectores y Departamentos</h3>
+          <button onclick="openCreateSectorModal()" class="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 shadow-md shadow-blue-600/20 transition cursor-pointer">
+            <i class="fa-solid fa-plus"></i>
+            <span>Nuevo Sector</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="sectors-grid">
+          <!-- Loaded dynamically -->
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL: CREATE / EDIT USER -->
+  <div id="user-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h4 id="user-modal-title" class="text-sm font-bold text-white">Nuevo Usuario</h4>
+        <button onclick="closeModal('user-modal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="user-form" class="mt-4 space-y-3">
+        <input type="hidden" id="user-form-id" />
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Usuario (Login)</label>
+          <input type="text" id="user-form-username" required placeholder="ej: jgonzalez" class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+        <div id="user-password-group">
+          <label class="block text-xs font-semibold text-slate-300">Contraseña</label>
+          <input type="password" id="user-form-password" placeholder="••••••••" class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Nombre Completo</label>
+          <input type="text" id="user-form-name" required placeholder="ej: Juan González" class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Sector / Departamento</label>
+          <select id="user-form-sector" class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+            <!-- Loaded dynamically -->
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Rol</label>
+          <select id="user-form-role" class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+            <option value="user">Usuario Estándar</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="user-form-is-leader" class="h-4 w-4 rounded border-slate-700 bg-slate-950 text-blue-600 focus:ring-blue-500 cursor-pointer" />
+          <label for="user-form-is-leader" class="text-xs font-semibold text-amber-400 cursor-pointer flex items-center gap-1.5">
+            <i class="fa-solid fa-star text-[10px]"></i> Designar como Encargado del Sector
+          </label>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <button type="button" onclick="closeModal('user-modal')" class="rounded-xl border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 cursor-pointer">Cancelar</button>
+          <button type="submit" class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 cursor-pointer">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: RESET PASSWORD -->
+  <div id="reset-pass-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="w-full max-w-sm rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h4 class="text-sm font-bold text-white">Restablecer Contraseña</h4>
+        <button onclick="closeModal('reset-pass-modal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="reset-pass-form" class="mt-4 space-y-3">
+        <input type="hidden" id="reset-pass-user-id" />
+        <p id="reset-pass-user-label" class="text-xs text-slate-400"></p>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Nueva Contraseña</label>
+          <input type="password" id="reset-pass-new" required minlength="4" placeholder="••••••••" class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <button type="button" onclick="closeModal('reset-pass-modal')" class="rounded-xl border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 cursor-pointer">Cancelar</button>
+          <button type="submit" class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 cursor-pointer">Actualizar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CREATE / EDIT SECTOR -->
+  <div id="sector-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+    <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h4 id="sector-modal-title" class="text-sm font-bold text-white">Nuevo Sector</h4>
+        <button onclick="closeModal('sector-modal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="sector-form" class="mt-4 space-y-3">
+        <input type="hidden" id="sector-form-id" />
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Nombre del Sector</label>
+          <input type="text" id="sector-form-name" required placeholder="ej: Despacho / Contabilidad" class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Sector Padre (Opcional - para subsectores)</label>
+          <select id="sector-form-parent" class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+            <option value="">Ninguno (Sector Principal / Raíz)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Descripción</label>
+          <input type="text" id="sector-form-desc" placeholder="ej: Auditoría y cuentas internas" class="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300">Color Identificador</label>
+          <input type="color" id="sector-form-color" value="#3b82f6" class="mt-1 h-9 w-20 rounded-xl border border-slate-700 bg-slate-950 px-1 py-1 cursor-pointer" />
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-800">
+          <button type="button" onclick="closeModal('sector-modal')" class="rounded-xl border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800 cursor-pointer">Cancelar</button>
+          <button type="submit" class="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 cursor-pointer">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/admin/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+import { io, Socket } from 'socket.io-client'
+import type { Message, MessageStatus, PresenceStatus } from '../types'
+
+export type MessageStatusUpdateData = {
+  status: MessageStatus
+  messageIds?: number[]
+  conversationWith?: number
+  senderId?: number
+}
+
+export type SocketEventHandlers = {
+  onPresenceSync: (onlineMap: Record<number, { presence: PresenceStatus; statusText: string }>) => void
+  onPresenceUpdate: (userId: number, presence: PresenceStatus, statusText?: string) => void
+  onMessageReceived: (message: Message) => void
+  onMessageStatusUpdate?: (data: MessageStatusUpdateData) => void
+  onTypingStatus: (senderId: number, senderName: string, isTyping: boolean) => void
+  onDisconnect: () => void
+  onError: (err: any) => void
+}
+
+class SocketService {
+  private socket: Socket | null = null
+  private handlers: Partial<SocketEventHandlers> = {}
+
+  public setHandlers(handlers: SocketEventHandlers) {
+    this.handlers = handlers
+  }
+
+  public connect(serverUrl: string, token: string) {
+    this.disconnect()
+
+    this.socket = io(serverUrl, {
+      auth: { token },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+    })
+
+    this.setupListeners()
+  }
+
+  private setupListeners() {
+    if (!this.socket) return
+
+    this.socket.on('connect', () => {
+      console.log('⚡ Conectado al servidor en tiempo real (Socket.IO)')
+    })
+
+    this.socket.on('presence:sync', (onlineMap) => {
+      this.handlers.onPresenceSync?.(onlineMap)
+    })
+
+    this.socket.on('presence:update', ({ userId, presence, statusText }) => {
+      this.handlers.onPresenceUpdate?.(userId, presence, statusText)
+    })
+
+    this.socket.on('message:receive', (message: Message) => {
+      this.handlers.onMessageReceived?.(message)
+    })
+
+    this.socket.on('message:status_update', (data: MessageStatusUpdateData) => {
+      this.handlers.onMessageStatusUpdate?.(data)
+    })
+
+    this.socket.on('typing:status', ({ sender_id, sender_name, isTyping }) => {
+      this.handlers.onTypingStatus?.(sender_id, sender_name, isTyping)
+    })
+
+    this.socket.on('disconnect', () => {
+      this.handlers.onDisconnect?.()
+    })
+
+    this.socket.on('connect_error', (err) => {
+      console.error('Socket Connection Error:', err)
+      this.handlers.onError?.(err)
+    })
+  }
+
+  public sendMessage(
+    data: {
+      receiver_id: number
+      content?: string
+      message_type?: 'text' | 'image' | 'file'
+      file_url?: string
+      file_name?: string
+      file_size?: number
+      file_mime?: string
+    }
+  ): Promise<Message> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        return reject(new Error('No hay conexión con el servidor'))
+      }
+
+      this.socket.emit('message:send', data, (response: any) => {
+        if (response?.error) {
+          reject(new Error(response.error))
+        } else if (response?.message) {
+          resolve(response.message)
+        } else {
+          resolve(data as unknown as Message)
+        }
+      })
+    })
+  }
+
+  public changePresence(presence: PresenceStatus, statusText: string = '') {
+    if (this.socket) {
+      this.socket.emit('presence:change', { presence, statusText })
+    }
+  }
+
+  public sendTyping(receiver_id: number, isTyping: boolean) {
+    if (this.socket) {
+      this.socket.emit(isTyping ? 'typing:start' : 'typing:stop', { receiver_id })
+    }
+  }
+
+  public markAsRead(senderId: number) {
+    if (this.socket) {
+      this.socket.emit('message:read', { sender_id: senderId })
+    }
+  }
+
+  public disconnect() {
+    if (this.socket) {
+      this.socket.disconnect()
+      this.socket = null
+    }
+  }
+}
+
+export const socketService = new SocketService()
