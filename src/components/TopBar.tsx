@@ -33,9 +33,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [showStatusMenu, setShowStatusMenu] = useState(false)
 
   const activeOption = statusOptions.find((s) => s.value === currentPresence) || statusOptions[0]
+  const serverUrl = apiService.getServerUrl()
 
   const openAdminDashboard = () => {
-    const serverUrl = apiService.getServerUrl()
     window.open(`${serverUrl}/admin`, '_blank')
   }
 
@@ -72,9 +72,27 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="relative shrink-0">
           <button
             onClick={() => setShowStatusMenu(!showStatusMenu)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2 sm:px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 transition cursor-pointer max-w-[120px] sm:max-w-[180px] md:max-w-[220px]"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2 sm:px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 transition cursor-pointer max-w-[130px] sm:max-w-[190px] md:max-w-[230px]"
           >
-            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${activeOption.color}`} />
+            {currentUser.avatar_url ? (
+              <div className="relative shrink-0">
+                <img
+                  src={
+                    currentUser.avatar_url.startsWith('http') || currentUser.avatar_url.startsWith('data:')
+                      ? currentUser.avatar_url
+                      : `${serverUrl}${currentUser.avatar_url}`
+                  }
+                  alt={currentUser.display_name}
+                  className="h-5 w-5 rounded-full object-cover border border-slate-700/60"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none'
+                  }}
+                />
+                <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-slate-900 ${activeOption.color}`} />
+              </div>
+            ) : (
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${activeOption.color}`} />
+            )}
             <span className="font-medium truncate">{currentUser.display_name}</span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 ml-0.5" />
           </button>

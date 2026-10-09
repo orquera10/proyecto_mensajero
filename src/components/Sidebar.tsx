@@ -7,6 +7,7 @@ import {
   Star,
 } from 'lucide-react'
 import type { User, Sector, PresenceStatus } from '../types'
+import { apiService } from '../services/apiService'
 
 interface SidebarProps {
   users: User[]
@@ -135,8 +136,26 @@ const SectorTreeItem: React.FC<{
               >
                 {/* Avatar with Status Dot */}
                 <div className="relative shrink-0">
+                  {user.avatar_url ? (
+                    <img
+                      src={
+                        user.avatar_url.startsWith('http') || user.avatar_url.startsWith('data:')
+                          ? user.avatar_url
+                          : `${apiService.getServerUrl()}${user.avatar_url}`
+                      }
+                      alt={user.display_name}
+                      className="h-9 w-9 rounded-lg object-cover border border-slate-700/50"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                        const fallback = e.currentTarget.parentElement?.querySelector('.avatar-fallback') as HTMLElement
+                        if (fallback) fallback.style.display = 'flex'
+                      }}
+                    />
+                  ) : null}
                   <div
-                    className={`flex h-9 w-9 items-center justify-center rounded-lg font-bold text-xs ${
+                    className={`avatar-fallback h-9 w-9 items-center justify-center rounded-lg font-bold text-xs ${
+                      user.avatar_url ? 'hidden' : 'flex'
+                    } ${
                       isActive ? 'bg-blue-700 text-white' : 'bg-slate-800 text-blue-400'
                     }`}
                   >

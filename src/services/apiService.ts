@@ -115,4 +115,20 @@ export const apiService = {
       body: JSON.stringify({ new_password }),
     })
   },
+
+  async updateAvatar(avatarUrl: string): Promise<{ message: string; user: User; avatar_url: string }> {
+    return this.request<{ message: string; user: User; avatar_url: string }>('/api/auth/avatar', {
+      method: 'POST',
+      body: JSON.stringify({ avatar_url: avatarUrl }),
+    })
+  },
+
+  async uploadAvatar(file: File): Promise<{ message: string; user: User; avatar_url: string }> {
+    const formData = new FormData()
+    formData.append('avatar', file)
+    return this.request<{ message: string; user: User; avatar_url: string }>('/api/auth/avatar', {
+      method: 'POST',
+      body: formData,
+    })
+  },
 }

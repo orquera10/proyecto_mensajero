@@ -302,7 +302,27 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 </button>
               )}
               <div className="relative shrink-0">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400 font-bold text-sm border border-blue-500/20">
+                {activeUser.avatar_url ? (
+                  <img
+                    src={
+                      activeUser.avatar_url.startsWith('http') || activeUser.avatar_url.startsWith('data:')
+                        ? activeUser.avatar_url
+                        : `${serverUrl}${activeUser.avatar_url}`
+                    }
+                    alt={activeUser.display_name}
+                    className="h-10 w-10 rounded-xl object-cover border border-slate-700/50"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                      const fallback = e.currentTarget.parentElement?.querySelector('.avatar-fallback') as HTMLElement
+                      if (fallback) fallback.style.display = 'flex'
+                    }}
+                  />
+                ) : null}
+                <div
+                  className={`avatar-fallback h-10 w-10 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400 font-bold text-sm border border-blue-500/20 ${
+                    activeUser.avatar_url ? 'hidden' : 'flex'
+                  }`}
+                >
                   {activeUser.display_name.charAt(0).toUpperCase()}
                 </div>
                 <span

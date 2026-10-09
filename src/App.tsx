@@ -344,6 +344,20 @@ export const App: React.FC = () => {
         }
       },
 
+      onUserAvatarUpdate: ({ userId, avatar_url }) => {
+        setUsers((prev) =>
+          prev.map((u) => (Number(u.id) === Number(userId) ? { ...u, avatar_url } : u))
+        )
+        if (activeUserRef.current && Number(activeUserRef.current.id) === Number(userId)) {
+          setActiveUser((prev) => (prev ? { ...prev, avatar_url } : null))
+        }
+        if (currentUserRef.current && Number(currentUserRef.current.id) === Number(userId)) {
+          const updated = { ...currentUserRef.current, avatar_url }
+          setCurrentUser(updated)
+          storageService.saveUser(updated)
+        }
+      },
+
       onDisconnect: () => {
         console.warn('Socket desconectado')
       },
@@ -829,6 +843,13 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         currentConfig={serverConfig}
         currentUser={currentUser}
+        onUserUpdated={(updatedUser) => {
+          setCurrentUser(updatedUser)
+          storageService.saveUser(updatedUser)
+          setUsers((prev) =>
+            prev.map((u) => (Number(u.id) === Number(updatedUser.id) ? { ...u, avatar_url: updatedUser.avatar_url } : u))
+          )
+        }}
         onSaveConfig={(newCfg) => {
           setServerConfig(newCfg)
           storageService.saveConfig(newCfg)

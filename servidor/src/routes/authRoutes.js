@@ -2,6 +2,7 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import { query } from '../db.js'
 import { generateToken, authenticateToken } from '../auth.js'
+import { upload } from '../upload.js'
 
 export const authRouter = Router()
 
@@ -211,3 +212,67 @@ authRouter.post('/change-password', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Error al cambiar la contraseña' })
   }
 })
+
+// POST /api/auth/avatar (Subir foto de perfil o elegir avatar prediseñado)
+authRouter.post(
+  '/avatar',
+  authenticateToken,
+  (req, res, next) => {
+    if (req.is('multipart/form-data')) {
+      upload.single('avatar')(req, res, next)
+    } else {
+      next()
+    }
+  },
+  async (req, res) => {
+    try {
+      const userId = req.user.id
+      let avatarUrl = ''
+
+      if (req.file) {
+        avatarUrl = `/uploads/${req.file.filename}`
+      } else if (req.body && typeof req.body.avatar_url === 'string') {
+        avatarUrl = req.body.avatar_url.trim()
+      } else {
+        return res.status(400).json({ error: 'No se envió ninguna foto ni URL de avatar' })
+      }
+
+      await query('UPDATE users SET avatar_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [
+        avatarUrl,
+        userId,
+      ])
+
+      const { rows } = await query(
+        `SELECT u.id, u.username, u.display_name, u.role, u.sector_id, u.is_leader, u.avatar_url,
+                s.name as sector_name, s.color as sector_color
+         FROM users u
+         LEFT JOIN sectors s ON u.sector_id = s.id
+         WHERE u.id = ?
+         LIMIT 1`,
+        [userId]
+      )
+
+      const updatedUser = {
+        ...rows[0],
+        is_leader: Boolean(rows[0].is_leader),
+      }
+
+      const io = req.app.get('io')
+      if (io) {
+        io.emit('user:avatar_updated', {
+          userId,
+          avatar_url: avatarUrl,
+        })
+      }
+
+      res.json({
+        message: 'Avatar de perfil actualizado exitosamente',
+        user: updatedUser,
+        avatar_url: avatarUrl,
+      })
+    } catch (err) {
+      console.error('Error al actualizar avatar:', err)
+      res.status(500).json({ error: 'Error al actualizar el avatar de perfil' })
+    }
+  }
+)
