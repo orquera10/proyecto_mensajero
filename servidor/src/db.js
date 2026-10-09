@@ -55,9 +55,13 @@ export async function initDb() {
 // Universal Query Helper
 export async function query(sql, params = []) {
   if (dbType === 'postgres') {
+    let pgSql = sql
+    if (/^\s*INSERT\s+INTO/i.test(pgSql) && !/RETURNING/i.test(pgSql)) {
+      pgSql += ' RETURNING id'
+    }
     // Adapt ? placeholders to $1, $2, ... for PostgreSQL
     let paramIndex = 1
-    const pgSql = sql.replace(/\?/g, () => `$${paramIndex++}`)
+    pgSql = pgSql.replace(/\?/g, () => `$${paramIndex++}`)
     const res = await pgPool.query(pgSql, params)
     return {
       rows: res.rows,

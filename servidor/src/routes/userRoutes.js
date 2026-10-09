@@ -25,7 +25,7 @@ userRouter.get('/', authenticateToken, async (req, res) => {
                 FROM messages m 
                 WHERE m.sender_id = u.id 
                   AND m.receiver_id = ? 
-                  AND (m.status != 'read' OR m.is_read = FALSE OR m.is_read = 0)
+                  AND (m.status != 'read' OR NOT m.is_read)
               ) as unread_count,
               (
                 SELECT m2.content 
@@ -104,7 +104,7 @@ userRouter.post('/', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     const passHash = await bcrypt.hash(password, 10)
-    const isLeaderVal = is_leader ? 1 : 0
+    const isLeaderVal = Boolean(is_leader)
 
     const { insertId } = await query(
       `INSERT INTO users (username, password_hash, display_name, sector_id, role, is_leader)
@@ -137,7 +137,7 @@ userRouter.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params
     const { display_name, sector_id, role, is_leader } = req.body
-    const isLeaderVal = is_leader ? 1 : 0
+    const isLeaderVal = Boolean(is_leader)
 
     await query(
       `UPDATE users SET display_name = ?, sector_id = ?, role = ?, is_leader = ?, updated_at = CURRENT_TIMESTAMP

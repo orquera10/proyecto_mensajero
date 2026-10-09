@@ -110,8 +110,8 @@ authRouter.post('/windows-sso', async (req, res) => {
 
       await query(
         `INSERT INTO users (username, password_hash, display_name, sector_id, role, is_leader)
-         VALUES (?, ?, ?, ?, ?, 0)`,
-        [cleanUsername, passwordHash, friendlyName, assignedSectorId, role]
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [cleanUsername, passwordHash, friendlyName, assignedSectorId, role, false]
       )
 
       // Fetch created user

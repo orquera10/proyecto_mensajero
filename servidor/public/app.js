@@ -543,11 +543,21 @@ function populateSectorSelect(editingSectorId = null) {
 async function loadUsers() {
   try {
     const data = await apiRequest('/api/users')
-    usersCache = data.users
+    usersCache = data.users || []
     renderUsers()
     populateAuditUserSelects()
   } catch (err) {
     console.error('Error loading users:', err)
+    const tbody = document.getElementById('users-table-body')
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" class="px-4 py-8 text-center text-rose-400 italic">
+            Error al cargar usuarios: ${err.message}
+          </td>
+        </tr>
+      `
+    }
   }
 }
 
