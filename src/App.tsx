@@ -82,9 +82,9 @@ export const App: React.FC = () => {
     }
   }, [])
 
-  // When window/tab gains focus, mark active conversation messages as read
+  // When window/tab gains focus, mark active conversation messages as read and refresh
   useEffect(() => {
-    const handleFocusOrVisible = () => {
+    const handleFocusOrVisible = async () => {
       if (document.visibilityState === 'visible' && activeUserRef.current) {
         const activeId = activeUserRef.current.id
         apiService.markAsRead(activeId)
@@ -92,11 +92,30 @@ export const App: React.FC = () => {
 
         // Clear unread count for active contact
         setUsers((prev) => {
-          const updated = prev.map((u) => (u.id === activeId ? { ...u, unreadCount: 0 } : u))
+          const updated = prev.map((u) => (Number(u.id) === Number(activeId) ? { ...u, unreadCount: 0 } : u))
           const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
           notificationService.updateUnreadTitle(totalUnread)
           return updated
         })
+
+        // Refresh active chat in case messages arrived while minimized or phone locked
+        try {
+          const { messages: history } = await apiService.getChatHistory(activeId)
+          setMessages((prev) => {
+            if (
+              history.length !== prev.length ||
+              (history.length > 0 && history[history.length - 1].id !== prev[prev.length - 1]?.id)
+            ) {
+              return history.map((m) => ({
+                ...m,
+                isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+              }))
+            }
+            return prev
+          })
+        } catch {
+          // Ignored
+        }
       }
     }
 
@@ -109,9 +128,52 @@ export const App: React.FC = () => {
     }
   }, [])
 
+  // Auto-sync active conversation in real time to guarantee messages never get missed
+  useEffect(() => {
+    const syncInterval = setInterval(async () => {
+      if (document.visibilityState === 'visible' && activeUserRef.current) {
+        const activeId = activeUserRef.current.id
+        try {
+          const { messages: history } = await apiService.getChatHistory(activeId)
+          setMessages((prev) => {
+            if (
+              history.length !== prev.length ||
+              (history.length > 0 && history[history.length - 1].id !== prev[prev.length - 1]?.id)
+            ) {
+              return history.map((m) => ({
+                ...m,
+                isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+              }))
+            }
+            return prev
+          })
+        } catch {
+          // Ignored
+        }
+      }
+    }, 3000)
+
+    return () => clearInterval(syncInterval)
+  }, [])
+
   // Setup Socket.IO Event Handlers
   useEffect(() => {
     socketService.setHandlers({
+      onConnect: () => {
+        // Sync active chat whenever socket connects or reconnects
+        if (activeUserRef.current) {
+          const activeId = activeUserRef.current.id
+          apiService.getChatHistory(activeId).then(({ messages: history }) => {
+            setMessages(
+              history.map((m) => ({
+                ...m,
+                isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+              }))
+            )
+          }).catch(console.warn)
+        }
+      },
+
       onPresenceSync: (onlineMap) => {
         presenceMapRef.current = { ...onlineMap }
         setUsers((prev) =>
@@ -137,9 +199,9 @@ export const App: React.FC = () => {
         }
 
         setUsers((prev) =>
-          prev.map((u) => (u.id === userId ? { ...u, presence, statusText } : u))
+          prev.map((u) => (Number(u.id) === Number(userId) ? { ...u, presence, statusText } : u))
         )
-        if (activeUserRef.current && activeUserRef.current.id === userId) {
+        if (activeUserRef.current && Number(activeUserRef.current.id) === Number(userId)) {
           setActiveUser((prev) => (prev ? { ...prev, presence, statusText } : null))
         }
       },
@@ -148,55 +210,44 @@ export const App: React.FC = () => {
         const currentActive = activeUserRef.current
         const me = currentUserRef.current
         const isFromCurrentConversation =
-          currentActive && (currentActive.id === message.sender_id || currentActive.id === message.receiver_id)
-        const isWindowFocused = document.visibilityState === 'visible' && document.hasFocus()
+          currentActive &&
+          (Number(currentActive.id) === Number(message.sender_id) ||
+           Number(currentActive.id) === Number(message.receiver_id))
+        const isVisible = document.visibilityState === 'visible'
 
         if (isFromCurrentConversation) {
-          setMessages((prev) => [...prev, { ...message, isMine: message.sender_id === me?.id }])
-          
-          if (isWindowFocused) {
-            apiService.markAsRead(message.sender_id)
-            socketService.markAsRead(message.sender_id)
-          } else {
-            // Window is minimized or in background; show unread badge until focused
-            setUsers((prev) => {
-              const updated = prev.map((u) =>
-                u.id === message.sender_id
-                  ? {
-                      ...u,
-                      unreadCount: (u.unreadCount || 0) + 1,
-                      lastMessage: message.content || (message.message_type === 'image' ? '📷 Imagen' : '📎 Archivo'),
-                      lastMessageTime: message.created_at,
-                    }
-                  : u
-              )
-              const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
-              notificationService.updateUnreadTitle(totalUnread)
-              return updated
-            })
-          }
-        } else {
-          // Increment unread count for that user
-          setUsers((prev) => {
-            const updated = prev.map((u) =>
-              u.id === message.sender_id
-                ? {
-                    ...u,
-                    unreadCount: (u.unreadCount || 0) + 1,
-                    lastMessage: message.content || (message.message_type === 'image' ? '📷 Imagen' : '📎 Archivo'),
-                    lastMessageTime: message.created_at,
-                  }
-                : u
-            )
-            const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
-            notificationService.updateUnreadTitle(totalUnread)
-            return updated
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === message.id)) return prev
+            return [...prev, { ...message, isMine: Number(message.sender_id) === Number(me?.id) }]
           })
+
+          if (isVisible) {
+            apiService.markAsRead(Number(message.sender_id))
+            socketService.markAsRead(Number(message.sender_id))
+          }
         }
 
+        // Always update unread count and latest message preview in sidebar
+        setUsers((prev) => {
+          const updated = prev.map((u) => {
+            if (Number(u.id) === Number(message.sender_id)) {
+              return {
+                ...u,
+                unreadCount: isFromCurrentConversation && isVisible ? 0 : (u.unreadCount || 0) + 1,
+                lastMessage: message.content || (message.message_type === 'image' ? '📷 Imagen' : '📎 Archivo'),
+                lastMessageTime: message.created_at,
+              }
+            }
+            return u
+          })
+          const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+          notificationService.updateUnreadTitle(totalUnread)
+          return updated
+        })
+
         // Trigger Notification & Sound Alert if message is from someone else
-        if (message.sender_id !== me?.id) {
-          const sender = usersRef.current.find((u) => u.id === message.sender_id)
+        if (Number(message.sender_id) !== Number(me?.id)) {
+          const sender = usersRef.current.find((u) => Number(u.id) === Number(message.sender_id))
           const senderName = sender ? sender.display_name : 'Nuevo Mensaje'
           const bodyText =
             message.content || (message.message_type === 'image' ? '📷 Imagen adjunta' : '📎 Archivo adjunto')
@@ -452,16 +503,48 @@ export const App: React.FC = () => {
   // Send Text Message
   const handleSendMessage = async (content: string) => {
     if (!activeUser || !currentUser) return
+    const tempId = Date.now()
+    const optimisticMsg: Message = {
+      id: tempId,
+      sender_id: currentUser.id,
+      receiver_id: activeUser.id,
+      content,
+      message_type: 'text',
+      status: 'sent',
+      is_read: false,
+      created_at: new Date().toISOString(),
+      isMine: true,
+      sender_name: currentUser.display_name,
+    }
+
+    // 1. Mostrar inmediatamente en la pantalla (cero latencia)
+    setMessages((prev) => [...prev, optimisticMsg])
+
+    // 2. Actualizar último mensaje en la barra lateral
+    setUsers((prev) =>
+      prev.map((u) =>
+        Number(u.id) === Number(activeUser.id)
+          ? {
+              ...u,
+              lastMessage: content,
+              lastMessageTime: optimisticMsg.created_at,
+            }
+          : u
+      )
+    )
+
     try {
       const sent = await socketService.sendMessage({
         receiver_id: activeUser.id,
         content,
         message_type: 'text',
       })
-      setMessages((prev) => [
-        ...prev,
-        { ...sent, isMine: true, sender_name: currentUser.display_name },
-      ])
+      // Actualizar con el ID confirmado del servidor
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId ? { ...sent, isMine: true, sender_name: currentUser.display_name } : m
+        )
+      )
     } catch (err: any) {
       console.error('Failed to send message:', err)
     }
@@ -470,22 +553,47 @@ export const App: React.FC = () => {
   // Send File / Image Attachment
   const handleSendFile = async (file: File) => {
     if (!activeUser || !currentUser) return
-    const uploadRes = await apiService.uploadFile(file)
+    try {
+      const uploadRes = await apiService.uploadFile(file)
+      const tempId = Date.now()
+      const optimisticMsg: Message = {
+        id: tempId,
+        sender_id: currentUser.id,
+        receiver_id: activeUser.id,
+        content: '',
+        message_type: uploadRes.message_type,
+        file_url: uploadRes.file_url,
+        file_name: uploadRes.file_name,
+        file_size: uploadRes.file_size,
+        file_mime: uploadRes.file_mime,
+        status: 'sent',
+        is_read: false,
+        created_at: new Date().toISOString(),
+        isMine: true,
+        sender_name: currentUser.display_name,
+      }
 
-    const sent = await socketService.sendMessage({
-      receiver_id: activeUser.id,
-      content: '',
-      message_type: uploadRes.message_type,
-      file_url: uploadRes.file_url,
-      file_name: uploadRes.file_name,
-      file_size: uploadRes.file_size,
-      file_mime: uploadRes.file_mime,
-    })
+      setMessages((prev) => [...prev, optimisticMsg])
 
-    setMessages((prev) => [
-      ...prev,
-      { ...sent, isMine: true, sender_name: currentUser.display_name },
-    ])
+      const sent = await socketService.sendMessage({
+        receiver_id: activeUser.id,
+        content: '',
+        message_type: uploadRes.message_type,
+        file_url: uploadRes.file_url,
+        file_name: uploadRes.file_name,
+        file_size: uploadRes.file_size,
+        file_mime: uploadRes.file_mime,
+      })
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId ? { ...sent, isMine: true, sender_name: currentUser.display_name } : m
+        )
+      )
+    } catch (err: any) {
+      console.error('Failed to send file:', err)
+      alert(`Error al enviar archivo: ${err.message}`)
+    }
   }
 
   // Send typing indicator
@@ -562,30 +670,32 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex h-[100dvh] w-full max-w-full flex-col bg-slate-950 overflow-hidden">
-      {/* PWA Install Banner (Mobile & Web) */}
+      {/* PWA Install Banner (Mobile & Web) - hidden on mobile when viewing active chat */}
       {showInstallBanner && (
-        <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-blue-700 to-indigo-700 px-3 sm:px-4 py-2 text-xs text-white shadow-md select-none shrink-0 z-40">
-          <div className="flex items-center gap-2 truncate">
-            <Smartphone className="h-4 w-4 shrink-0 text-blue-200" />
-            <span className="truncate font-medium text-[11px] sm:text-xs">
-              Instala la aplicación para recibir avisos y acceso rápido
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleInstallPWA}
-              className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 font-semibold text-xs text-blue-900 shadow hover:bg-blue-50 active:scale-95 transition cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>Instalar</span>
-            </button>
-            <button
-              onClick={() => setShowInstallBanner(false)}
-              className="rounded-lg p-1 text-blue-200 hover:bg-white/10 hover:text-white transition cursor-pointer"
-              title="Cerrar"
-            >
-              <X className="h-4 w-4" />
-            </button>
+        <div className={`z-40 shrink-0 ${activeUser ? 'hidden md:block' : 'block'}`}>
+          <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-blue-700 to-indigo-700 px-3 sm:px-4 py-2 text-xs text-white shadow-md select-none">
+            <div className="flex items-center gap-2 truncate">
+              <Smartphone className="h-4 w-4 shrink-0 text-blue-200" />
+              <span className="truncate font-medium text-[11px] sm:text-xs">
+                Instala la aplicación para recibir avisos y acceso rápido
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleInstallPWA}
+                className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 font-semibold text-xs text-blue-900 shadow hover:bg-blue-50 active:scale-95 transition cursor-pointer"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span>Instalar</span>
+              </button>
+              <button
+                onClick={() => setShowInstallBanner(false)}
+                className="rounded-lg p-1 text-blue-200 hover:bg-white/10 hover:text-white transition cursor-pointer"
+                title="Cerrar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}

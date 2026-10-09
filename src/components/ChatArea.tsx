@@ -212,18 +212,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       )}
 
       {/* Contact Header */}
-      <header className="flex h-16 items-center justify-between border-b border-slate-800 bg-slate-900/50 px-3 md:px-6 backdrop-blur">
-        <div className="flex items-center gap-2.5 md:gap-3">
+      <header className="flex h-16 items-center justify-between border-b border-slate-800 bg-slate-900/50 px-3 md:px-5 backdrop-blur overflow-hidden">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
           {onBack && (
             <button
               onClick={onBack}
-              className="md:hidden -ml-1 rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer"
+              className="md:hidden -ml-1 rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer shrink-0"
               title="Volver a los contactos"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
-          <div className="relative">
+          <div className="relative shrink-0">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400 font-bold text-sm border border-blue-500/20">
               {activeUser.display_name.charAt(0).toUpperCase()}
             </div>
@@ -234,38 +234,41 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             />
           </div>
 
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h2 className="text-sm font-semibold text-white">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <h2 className="text-sm font-semibold text-white truncate">
                 {activeUser.display_name}
               </h2>
               {activeUser.is_leader && (
-                <span title="Encargado del Sector" className="inline-flex items-center">
-                  <Star className="h-3.5 w-3.5 shrink-0 text-amber-400 fill-amber-400" />
+                <span title="Encargado del Sector" className="inline-flex items-center shrink-0">
+                  <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
                 </span>
               )}
               {(activeUser.sector_full_path || activeUser.sector_name) && (
                 <span
-                  className="rounded-md px-2 py-0.5 text-[10px] font-medium"
+                  className="rounded-md px-1.5 py-0.5 text-[10px] font-medium truncate max-w-[120px] sm:max-w-[200px] shrink-0"
                   style={{
                     backgroundColor: `${activeUser.sector_color || '#3b82f6'}20`,
                     color: activeUser.sector_color || '#3b82f6',
                     border: `1px solid ${activeUser.sector_color || '#3b82f6'}40`,
                   }}
+                  title={activeUser.sector_full_path || activeUser.sector_name}
                 >
                   {activeUser.sector_full_path || activeUser.sector_name}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-slate-400">
-              {presenceLabels[activeUser.presence]}
-              {activeUser.statusText && ` • ${activeUser.statusText}`}
-              <span className="text-slate-600 ml-1">(@{activeUser.username})</span>
+            <p className="text-[11px] text-slate-400 min-w-0 truncate flex items-center gap-1.5">
+              <span className="truncate">
+                {presenceLabels[activeUser.presence]}
+                {activeUser.statusText && ` • ${activeUser.statusText}`}
+              </span>
+              <span className="text-slate-600 shrink-0 hidden sm:inline">(@{activeUser.username})</span>
             </p>
           </div>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 text-slate-400">
+        <div className="hidden lg:flex items-center gap-2 text-slate-400 shrink-0">
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
             <Shield className="h-3.5 w-3.5 text-emerald-400" />
             <span>Cifrado SSL / WSS</span>

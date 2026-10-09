@@ -38,7 +38,7 @@ export function initSocketIO(io) {
 
   io.on('connection', async (socket) => {
     const user = socket.user
-    const userId = user.id
+    const userId = Number(user.id)
 
     // Register user socket
     if (!userPresenceMap.has(userId)) {
@@ -131,7 +131,8 @@ export function initSocketIO(io) {
     // Handle Private 1-to-1 Message
     socket.on('message:send', async (data, callback) => {
       try {
-        const { receiver_id, content, message_type, file_url, file_name, file_size, file_mime } = data
+        const { content, message_type, file_url, file_name, file_size, file_mime } = data
+        const receiver_id = Number(data.receiver_id)
 
         if (!receiver_id || (!content && !file_url)) {
           return callback?.({ error: 'Mensaje inválido' })

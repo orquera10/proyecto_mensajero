@@ -9,6 +9,7 @@ export type MessageStatusUpdateData = {
 }
 
 export type SocketEventHandlers = {
+  onConnect?: () => void
   onPresenceSync: (onlineMap: Record<number, { presence: PresenceStatus; statusText: string }>) => void
   onPresenceUpdate: (userId: number, presence: PresenceStatus, statusText?: string) => void
   onMessageReceived: (message: Message) => void
@@ -21,6 +22,7 @@ export type SocketEventHandlers = {
 class SocketService {
   private socket: Socket | null = null
   private handlers: Partial<SocketEventHandlers> = {}
+  private visibilityListenerAttached: boolean = false
 
   public setHandlers(handlers: SocketEventHandlers) {
     this.handlers = handlers
@@ -40,7 +42,8 @@ class SocketService {
     })
 
     // Reconexión instantánea en móviles al desbloquear pantalla o volver a la app
-    if (typeof document !== 'undefined') {
+    if (typeof document !== 'undefined' && !this.visibilityListenerAttached) {
+      this.visibilityListenerAttached = true
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && this.socket && !this.socket.connected) {
           console.log('📱 Dispositivo activo: reconectando socket inmediatamente...')
@@ -57,6 +60,7 @@ class SocketService {
 
     this.socket.on('connect', () => {
       console.log('⚡ Conectado al servidor en tiempo real (Socket.IO)')
+      this.handlers.onConnect?.()
     })
 
     this.socket.on('presence:sync', (onlineMap) => {
@@ -69,6 +73,10 @@ class SocketService {
 
     this.socket.on('message:receive', (message: Message) => {
       this.handlers.onMessageReceived?.(message)
+    })
+
+    this.socket.on('message:sent_sync', (message: Message) => {
+      this.handlers.onMessageReceived?.({ ...message, isMine: true })
     })
 
     this.socket.on('message:status_update', (data: MessageStatusUpdateData) => {
