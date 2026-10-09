@@ -10,6 +10,7 @@ export interface User {
   sector_color?: string
   sector_parent_id?: number | null
   sector_full_path?: string
+  sector_short_path?: string
   is_leader?: boolean
   avatar_url?: string
   presence: PresenceStatus

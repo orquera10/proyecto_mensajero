@@ -48,6 +48,19 @@ function formatBytes(bytes?: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 
+function getSectorLabel(user?: User | null): string {
+  if (!user) return ''
+  if (user.sector_short_path) return user.sector_short_path
+  if (user.sector_full_path) {
+    const parts = user.sector_full_path.split(/\s*(?:>|\/)\s*/).filter(Boolean)
+    if (parts.length >= 2) {
+      return `${parts[parts.length - 2]} / ${parts[parts.length - 1]}`
+    }
+    return user.sector_full_path
+  }
+  return user.sector_name || ''
+}
+
 export const ChatArea: React.FC<ChatAreaProps> = ({
   activeUser,
   messages,
@@ -212,69 +225,78 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       )}
 
       {/* Contact Header */}
-      <header className="flex h-16 items-center justify-between border-b border-slate-800 bg-slate-900/50 px-3 md:px-5 backdrop-blur overflow-hidden">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
-          {onBack && (
-            <button
-              onClick={onBack}
-              className="md:hidden -ml-1 rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer shrink-0"
-              title="Volver a los contactos"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-          )}
-          <div className="relative shrink-0">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400 font-bold text-sm border border-blue-500/20">
-              {activeUser.display_name.charAt(0).toUpperCase()}
-            </div>
-            <span
-              className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 ${
-                presenceColors[activeUser.presence]
-              }`}
-            />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0">
-              <h2 className="text-sm font-semibold text-white truncate">
-                {activeUser.display_name}
-              </h2>
-              {activeUser.is_leader && (
-                <span title="Encargado del Sector" className="inline-flex items-center shrink-0">
-                  <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
-                </span>
-              )}
-              {(activeUser.sector_full_path || activeUser.sector_name) && (
-                <span
-                  className="rounded-md px-1.5 py-0.5 text-[10px] font-medium truncate max-w-[120px] sm:max-w-[200px] shrink-0"
-                  style={{
-                    backgroundColor: `${activeUser.sector_color || '#3b82f6'}20`,
-                    color: activeUser.sector_color || '#3b82f6',
-                    border: `1px solid ${activeUser.sector_color || '#3b82f6'}40`,
-                  }}
-                  title={activeUser.sector_full_path || activeUser.sector_name}
+      {(() => {
+        const sectorLabel = getSectorLabel(activeUser)
+        return (
+          <header className="flex min-h-16 items-center justify-between border-b border-slate-800 bg-slate-900/60 px-3 md:px-5 py-2 backdrop-blur">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
+              {onBack && (
+                <button
+                  onClick={onBack}
+                  className="md:hidden -ml-1 rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer shrink-0"
+                  title="Volver a los contactos"
                 >
-                  {activeUser.sector_full_path || activeUser.sector_name}
-                </span>
+                  <ArrowLeft className="h-5 w-5" />
+                </button>
               )}
-            </div>
-            <p className="text-[11px] text-slate-400 min-w-0 truncate flex items-center gap-1.5">
-              <span className="truncate">
-                {presenceLabels[activeUser.presence]}
-                {activeUser.statusText && ` • ${activeUser.statusText}`}
-              </span>
-              <span className="text-slate-600 shrink-0 hidden sm:inline">(@{activeUser.username})</span>
-            </p>
-          </div>
-        </div>
+              <div className="relative shrink-0">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400 font-bold text-sm border border-blue-500/20">
+                  {activeUser.display_name.charAt(0).toUpperCase()}
+                </div>
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 ${
+                    presenceColors[activeUser.presence]
+                  }`}
+                />
+              </div>
 
-        <div className="hidden lg:flex items-center gap-2 text-slate-400 shrink-0">
-          <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
-            <Shield className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Cifrado SSL / WSS</span>
-          </div>
-        </div>
-      </header>
+              <div className="min-w-0 flex-1">
+                {/* Contact Name */}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <h2 className="text-sm font-semibold text-white truncate">
+                    {activeUser.display_name}
+                  </h2>
+                  {activeUser.is_leader && (
+                    <span title="Encargado del Sector" className="inline-flex items-center shrink-0">
+                      <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                    </span>
+                  )}
+                </div>
+
+                {/* Sector complete below name (not cut, wraps if long, smaller font) */}
+                {sectorLabel && (
+                  <div className="mt-0.5 leading-snug">
+                    <span
+                      className="inline-block text-[10px] sm:text-[11px] font-medium break-words"
+                      style={{ color: activeUser.sector_color || '#93c5fd' }}
+                      title={activeUser.sector_full_path || sectorLabel}
+                    >
+                      {sectorLabel}
+                    </span>
+                  </div>
+                )}
+
+                {/* Presence status & username */}
+                <p className="text-[10px] sm:text-[11px] text-slate-400 min-w-0 truncate flex items-center gap-1.5 mt-0.5">
+                  <span className={`h-1.5 w-1.5 rounded-full ${presenceColors[activeUser.presence]} shrink-0`} />
+                  <span className="truncate">
+                    {presenceLabels[activeUser.presence]}
+                    {activeUser.statusText && ` • ${activeUser.statusText}`}
+                  </span>
+                  <span className="text-slate-600 shrink-0 hidden sm:inline">(@{activeUser.username})</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="hidden lg:flex items-center gap-2 text-slate-400 shrink-0">
+              <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
+                <Shield className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Cifrado SSL / WSS</span>
+              </div>
+            </div>
+          </header>
+        )
+      })()}
 
       {/* Messages List */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">

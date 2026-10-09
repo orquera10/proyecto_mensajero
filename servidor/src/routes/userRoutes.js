@@ -65,6 +65,14 @@ userRouter.get('/', authenticateToken, async (req, res) => {
       }
 
       const sectorInfo = u.sector_id ? sectorMap.get(u.sector_id) : null
+      let shortPath = u.sector_name || 'General'
+      if (sectorInfo) {
+        if (sectorInfo.parent_name) {
+          shortPath = `${sectorInfo.parent_name} / ${sectorInfo.name}`
+        } else {
+          shortPath = sectorInfo.name
+        }
+      }
 
       return {
         id: u.id,
@@ -75,6 +83,7 @@ userRouter.get('/', authenticateToken, async (req, res) => {
         sector_name: u.sector_name,
         sector_color: u.sector_color,
         sector_full_path: sectorInfo ? sectorInfo.full_path : (u.sector_name || 'General'),
+        sector_short_path: shortPath,
         sector_parent_id: sectorInfo ? sectorInfo.parent_id : null,
         is_leader: Boolean(u.is_leader),
         avatar_url: u.avatar_url,
