@@ -127,6 +127,7 @@ const SectorTreeItem: React.FC<{
               <button
                 key={user.id}
                 onClick={() => onSelectUser(user)}
+                title={`${user.display_name}${user.sector_short_path ? ` • ${user.sector_short_path}` : ''}`}
                 style={{ paddingLeft: `${Math.max(10, level * 12 + 8)}px` }}
                 className={`flex w-full items-center gap-3 rounded-lg py-2.5 sm:py-2 pr-2.5 min-h-[48px] active:scale-[0.99] text-left transition cursor-pointer ${
                   isActive
@@ -209,6 +210,12 @@ const SectorTreeItem: React.FC<{
                       </span>
                     )}
                   </div>
+
+                  {searchQuery && user.sector_short_path && (
+                    <p className="truncate text-[10px] text-blue-300/80 font-medium leading-tight">
+                      {user.sector_short_path}
+                    </p>
+                  )}
 
                   <p
                     className={`truncate text-[11px] ${
