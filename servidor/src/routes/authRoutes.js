@@ -101,9 +101,9 @@ authRouter.post('/windows-sso', async (req, res) => {
         friendlyName = cleanUsername.charAt(0).toUpperCase() + cleanUsername.slice(1)
       }
 
-      // Generate random secure password hash
-      const dummyPass = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10)
-      const passwordHash = await bcrypt.hash(dummyPass, 10)
+      // Contraseña predeterminada para acceso web
+      const defaultPassword = process.env.DEFAULT_WINDOWS_PASSWORD || '123456'
+      const passwordHash = await bcrypt.hash(defaultPassword, 10)
 
       // Role: admin if username is admin or darorquera if designated, else user
       const role = cleanUsername === 'admin' ? 'admin' : 'user'
@@ -189,5 +189,25 @@ authRouter.get('/me', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error en /me:', err)
     res.status(500).json({ error: 'Error interno en el servidor' })
+  }
+})
+
+// POST /api/auth/change-password (Permite a cualquier usuario cambiar o definir su contraseña para acceso web)
+authRouter.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id
+    const { new_password } = req.body
+
+    if (!new_password || new_password.trim().length < 4) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 4 caracteres' })
+    }
+
+    const passHash = await bcrypt.hash(new_password.trim(), 10)
+    await query('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [passHash, userId])
+
+    res.json({ message: 'Contraseña web actualizada exitosamente' })
+  } catch (err) {
+    console.error('Error al cambiar contraseña:', err)
+    res.status(500).json({ error: 'Error al cambiar la contraseña' })
   }
 })

@@ -567,6 +567,7 @@ export const App: React.FC = () => {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         currentConfig={serverConfig}
+        currentUser={currentUser}
         onSaveConfig={(newCfg) => {
           setServerConfig(newCfg)
           storageService.saveConfig(newCfg)
