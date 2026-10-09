@@ -82,7 +82,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    const isMobile = typeof window !== 'undefined' && (window.innerWidth < 768 || 'ontouchstart' in window)
+    if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
       e.preventDefault()
       handleSend()
     } else {
@@ -264,7 +265,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-slate-400">
+        <div className="hidden sm:flex items-center gap-2 text-slate-400">
           <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
             <Shield className="h-3.5 w-3.5 text-emerald-400" />
             <span>Cifrado SSL / WSS</span>
@@ -273,7 +274,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       </header>
 
       {/* Messages List */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-xs text-slate-500">
             <p>No hay mensajes previos con este contacto.</p>
@@ -289,7 +290,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[70%] rounded-2xl px-4 py-2.5 text-xs shadow-sm ${
+                  className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-xs shadow-sm ${
                     isMine
                       ? 'bg-blue-600 text-white rounded-br-none shadow-blue-600/10'
                       : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
@@ -389,7 +390,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       </div>
 
       {/* Message Input Box */}
-      <div className="p-4 border-t border-slate-800 bg-slate-900/40">
+      <div className="p-2.5 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-900/60 backdrop-blur-md">
         <form onSubmit={handleSend} className="flex items-end gap-2">
           {/* Hidden File Picker */}
           <input
@@ -405,7 +406,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
             title="Adjuntar archivo o imagen"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer"
+            className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white active:scale-95 transition cursor-pointer"
           >
             {isUploading ? (
               <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
@@ -414,22 +415,22 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             )}
           </button>
 
-          {/* Textarea */}
+          {/* Textarea container */}
           <div
-            className={`flex-1 rounded-xl border transition-all ${
+            className={`flex-1 rounded-2xl border transition-all ${
               isDragging
                 ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
                 : 'border-slate-800 bg-slate-950/80 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/20'
-            } p-2`}
+            } px-3.5 py-2`}
           >
             <textarea
-              rows={2}
+              rows={1}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              placeholder={`Enviar mensaje o arrastra un archivo aquí... (Enter para enviar)`}
-              className="w-full resize-none bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+              placeholder="Mensaje... (Enter para enviar)"
+              className="w-full resize-none bg-transparent text-sm sm:text-xs text-white placeholder-slate-500 focus:outline-none max-h-32"
             />
           </div>
 
@@ -437,7 +438,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           <button
             type="submit"
             disabled={!inputText.trim()}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 cursor-pointer"
+            className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 active:scale-95 disabled:opacity-40 disabled:hover:bg-blue-600 cursor-pointer"
           >
             <Send className="h-4 w-4" />
           </button>

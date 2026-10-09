@@ -87,7 +87,7 @@ const SectorTreeItem: React.FC<{
       <button
         onClick={() => toggleSector(key)}
         style={{ paddingLeft: `${Math.max(12, level * 14 + 10)}px` }}
-        className={`flex w-full items-center justify-between py-2 pr-3 text-left text-xs font-semibold transition cursor-pointer ${
+        className={`flex w-full items-center justify-between py-2.5 sm:py-2 pr-3 text-left text-xs font-semibold transition cursor-pointer ${
           level === 0
             ? 'text-slate-200 hover:bg-slate-800/60'
             : 'text-slate-300 hover:bg-slate-800/40 rounded-lg'
@@ -127,7 +127,7 @@ const SectorTreeItem: React.FC<{
                 key={user.id}
                 onClick={() => onSelectUser(user)}
                 style={{ paddingLeft: `${Math.max(10, level * 12 + 8)}px` }}
-                className={`flex w-full items-center gap-3 rounded-lg py-2 pr-2.5 text-left transition cursor-pointer ${
+                className={`flex w-full items-center gap-3 rounded-lg py-2.5 sm:py-2 pr-2.5 min-h-[48px] active:scale-[0.99] text-left transition cursor-pointer ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                     : 'hover:bg-slate-800/70 text-slate-300'

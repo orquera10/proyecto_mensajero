@@ -9,6 +9,7 @@ import { TopBar } from './components/TopBar'
 import { Sidebar } from './components/Sidebar'
 import { ChatArea } from './components/ChatArea'
 import { SettingsModal } from './components/SettingsModal'
+import { Download, X, Smartphone } from 'lucide-react'
 
 export const App: React.FC = () => {
   const [serverConfig, setServerConfig] = useState<ServerConfig>(() =>
@@ -37,10 +38,40 @@ export const App: React.FC = () => {
   const usersRef = useRef<User[]>(users)
   usersRef.current = users
 
-  // Request browser notification permissions on mount
+  // PWA Install prompt state
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [showInstallBanner, setShowInstallBanner] = useState(false)
+
+  // Request browser notification permissions and listen for PWA install prompt
   useEffect(() => {
     notificationService.requestPermission()
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone
+      if (!isStandalone) {
+        setShowInstallBanner(true)
+      }
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    }
   }, [])
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    const { outcome } = await deferredPrompt.userChoice
+    if (outcome === 'accepted') {
+      setShowInstallBanner(false)
+    }
+    setDeferredPrompt(null)
+  }
 
   // Listen to Electron tray logout request
   useEffect(() => {
@@ -530,15 +561,45 @@ export const App: React.FC = () => {
     activeUser && typingMap[activeUser.id] ? activeUser.display_name : null
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-slate-950 overflow-hidden">
-      {/* Top Bar */}
-      <TopBar
-        currentUser={currentUser}
-        currentPresence={myPresence}
-        onPresenceChange={handlePresenceChange}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onLogout={handleLogout}
-      />
+    <div className="flex h-[100dvh] w-full max-w-full flex-col bg-slate-950 overflow-hidden">
+      {/* PWA Install Banner (Mobile & Web) */}
+      {showInstallBanner && (
+        <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-blue-700 to-indigo-700 px-3 sm:px-4 py-2 text-xs text-white shadow-md select-none shrink-0 z-40">
+          <div className="flex items-center gap-2 truncate">
+            <Smartphone className="h-4 w-4 shrink-0 text-blue-200" />
+            <span className="truncate font-medium text-[11px] sm:text-xs">
+              Instala la aplicación para recibir avisos y acceso rápido
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleInstallPWA}
+              className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 font-semibold text-xs text-blue-900 shadow hover:bg-blue-50 active:scale-95 transition cursor-pointer"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Instalar</span>
+            </button>
+            <button
+              onClick={() => setShowInstallBanner(false)}
+              className="rounded-lg p-1 text-blue-200 hover:bg-white/10 hover:text-white transition cursor-pointer"
+              title="Cerrar"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Top Bar - hidden on mobile when viewing active chat */}
+      <div className={activeUser ? 'hidden md:block' : 'block'}>
+        <TopBar
+          currentUser={currentUser}
+          currentPresence={myPresence}
+          onPresenceChange={handlePresenceChange}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onLogout={handleLogout}
+        />
+      </div>
 
       {/* Main Container */}
       <div className="flex flex-1 overflow-hidden">

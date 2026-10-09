@@ -33,9 +33,21 @@ class SocketService {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 4000,
+      timeout: 20000,
     })
+
+    // Reconexión instantánea en móviles al desbloquear pantalla o volver a la app
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this.socket && !this.socket.connected) {
+          console.log('📱 Dispositivo activo: reconectando socket inmediatamente...')
+          this.socket.connect()
+        }
+      })
+    }
 
     this.setupListeners()
   }

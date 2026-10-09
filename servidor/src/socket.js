@@ -8,7 +8,7 @@ const userPresenceMap = new Map()
 export function getUserPresenceMap() {
   const result = {}
   for (const [uid, data] of userPresenceMap.entries()) {
-    if (data.sockets && data.sockets.size > 0) {
+    if ((data.sockets && data.sockets.size > 0) || data.disconnectTimer) {
       result[uid] = {
         presence: data.presence || 'online',
         statusText: data.statusText || '',
@@ -46,10 +46,15 @@ export function initSocketIO(io) {
         sockets: new Set(),
         presence: 'online',
         statusText: 'Disponible',
+        disconnectTimer: null,
       })
     }
 
     const userData = userPresenceMap.get(userId)
+    if (userData.disconnectTimer) {
+      clearTimeout(userData.disconnectTimer)
+      userData.disconnectTimer = null
+    }
     userData.sockets.add(socket.id)
 
     // Join user's personal room & their sector room
@@ -225,20 +230,27 @@ export function initSocketIO(io) {
       }
     })
 
-    // Handle Disconnect
+    // Handle Disconnect with mobile grace period
     socket.on('disconnect', () => {
       if (userPresenceMap.has(userId)) {
         const u = userPresenceMap.get(userId)
         u.sockets.delete(socket.id)
 
         if (u.sockets.size === 0) {
-          userPresenceMap.delete(userId)
-          io.emit('presence:update', {
-            userId,
-            presence: 'offline',
-            statusText: '',
-          })
-          console.log(`👋 Usuario desconectado: ${user.display_name}`)
+          // Si no tiene sockets activos, dar un tiempo de gracia de 2 minutos antes de marcarlo offline
+          // para soportar celulares cuando bloquean pantalla o alternan aplicaciones
+          if (u.disconnectTimer) clearTimeout(u.disconnectTimer)
+          u.disconnectTimer = setTimeout(() => {
+            if (u.sockets.size === 0) {
+              userPresenceMap.delete(userId)
+              io.emit('presence:update', {
+                userId,
+                presence: 'offline',
+                statusText: '',
+              })
+              console.log(`👋 Usuario desconectado: ${user.display_name}`)
+            }
+          }, 120000) // 2 minutos
         }
       }
     })
