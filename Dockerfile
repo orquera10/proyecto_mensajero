@@ -3,15 +3,19 @@
 # ==========================================
 
 # Etapa 1: Compilar Frontend React (Vite)
-FROM node:20-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 WORKDIR /app
+
+# Forzar instalación de devDependencies (TypeScript, Vite, Tailwind) para el build
+ENV NODE_ENV=development
 COPY package*.json ./
-RUN npm install
+RUN npm install --include=dev
+
 COPY . .
 RUN npm run build
 
 # Etapa 2: Servidor Backend Node.js
-FROM node:20-alpine
+FROM node:22-alpine
 WORKDIR /app
 
 ENV NODE_ENV=production

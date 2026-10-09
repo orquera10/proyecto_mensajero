@@ -1,0 +1,10 @@
+node_modules
+servidor/node_modules
+dist
+dist-electron
+dist-msi
+data
+.git
+.env
+.env.*
+*.log
