@@ -45,6 +45,8 @@ export const App: React.FC = () => {
   activeUserRef.current = activeUser
   const isBroadcastActiveRef = useRef<boolean>(false)
   isBroadcastActiveRef.current = isBroadcastActive
+  const broadcastUnreadCountRef = useRef<number>(0)
+  broadcastUnreadCountRef.current = broadcastUnreadCount
   const currentUserRef = useRef<User | null>(currentUser)
   currentUserRef.current = currentUser
   const usersRef = useRef<User[]>(users)
@@ -303,7 +305,7 @@ export const App: React.FC = () => {
             return u
           })
           const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
-          notificationService.updateUnreadTitle(totalUnread)
+          notificationService.updateUnreadTitle(totalUnread + (broadcastUnreadCountRef.current || 0))
           return updated
         })
 
@@ -419,7 +421,13 @@ export const App: React.FC = () => {
         })
 
         if (!isBroadcastActiveRef.current) {
-          setBroadcastUnreadCount((prev) => prev + 1)
+          setBroadcastUnreadCount((prev) => {
+            const next = prev + 1
+            broadcastUnreadCountRef.current = next
+            const totalDirect = usersRef.current.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+            notificationService.updateUnreadTitle(totalDirect + next)
+            return next
+          })
           if (!isMine) {
             notificationService.notifyIncomingMessage(
               `📢 ${sanitizeName(message.sender_name) || 'Aviso Institucional'}`,
@@ -427,6 +435,8 @@ export const App: React.FC = () => {
               true
             )
           }
+        } else {
+          apiService.markBroadcastAsRead(message.id).catch(console.warn)
         }
       },
 
@@ -440,14 +450,19 @@ export const App: React.FC = () => {
     })
   }, [])
 
-  // Fetch initial data (users and sectors) after login
+  // Fetch initial data (users, sectors and unread broadcasts) after login
   const loadInitialData = useCallback(async () => {
     try {
-      const [sectorsRes, usersRes] = await Promise.all([
+      const [sectorsRes, usersRes, broadcastUnreadRes] = await Promise.all([
         apiService.getSectors(),
         apiService.getUsers(),
+        apiService.getBroadcastUnreadCount().catch(() => ({ unreadCount: 0 })),
       ])
       setSectors(sectorsRes.sectors)
+      const bUnread = isBroadcastActiveRef.current ? 0 : (broadcastUnreadRes?.unreadCount || 0)
+      setBroadcastUnreadCount(bUnread)
+      broadcastUnreadCountRef.current = bUnread
+
       setUsers((prevUsers) => {
         return usersRes.users.map((u) => {
           // Merge with presence from backend API or real-time presenceMapRef
@@ -475,7 +490,7 @@ export const App: React.FC = () => {
       })
 
       const totalUnread = usersRes.users.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
-      notificationService.updateUnreadTitle(totalUnread)
+      notificationService.updateUnreadTitle(totalUnread + bUnread)
     } catch (err: any) {
       console.error('Error loading initial data:', err)
     }
@@ -612,7 +627,7 @@ export const App: React.FC = () => {
       setUsers((prev) => {
         const updated = prev.map((u) => (Number(u.id) === Number(user.id) ? { ...u, unreadCount: 0 } : u))
         const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
-        notificationService.updateUnreadTitle(totalUnread)
+        notificationService.updateUnreadTitle(totalUnread + (broadcastUnreadCountRef.current || 0))
         return updated
       })
 
@@ -639,16 +654,26 @@ export const App: React.FC = () => {
     setIsBroadcastActive(true)
     setActiveUser(null)
     setBroadcastUnreadCount(0)
+    broadcastUnreadCountRef.current = 0
+
+    const totalDirect = usersRef.current.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+    notificationService.updateUnreadTitle(totalDirect)
 
     try {
       const res = await apiService.getBroadcastHistory({ limit: 40 })
-      setBroadcastMessages(
-        (res.messages || []).map((m) => ({
-          ...m,
-          isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
-        }))
-      )
+      const msgs = (res.messages || []).map((m) => ({
+        ...m,
+        isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+      }))
+      setBroadcastMessages(msgs)
       setHasMoreBroadcast(Boolean(res.hasMore))
+
+      if (msgs.length > 0) {
+        const maxId = Math.max(...msgs.map((m) => m.id))
+        apiService.markBroadcastAsRead(maxId).catch(console.warn)
+      } else {
+        apiService.markBroadcastAsRead().catch(console.warn)
+      }
     } catch (err) {
       console.error('Error loading broadcast history:', err)
     }

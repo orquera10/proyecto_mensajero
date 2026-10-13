@@ -429,9 +429,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-1">
                 <span className="font-bold text-xs truncate">Avisos y Difusión</span>
-                {broadcastUnreadCount > 0 && (
-                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm animate-pulse">
-                    {broadcastUnreadCount}
+                {broadcastUnreadCount > 0 && !isBroadcastActive && (
+                  <span
+                    title={`${broadcastUnreadCount} comunicado${broadcastUnreadCount > 1 ? 's' : ''} nuevo${broadcastUnreadCount > 1 ? 's' : ''}`}
+                    className="flex h-5 min-w-[20px] px-1.5 shrink-0 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-md shadow-rose-500/30 animate-pulse"
+                  >
+                    {broadcastUnreadCount > 99 ? '99+' : broadcastUnreadCount}
                   </span>
                 )}
               </div>

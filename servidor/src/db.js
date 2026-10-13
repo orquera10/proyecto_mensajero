@@ -140,6 +140,14 @@ async function runMigrations() {
       );
     `)
 
+    await query(`
+      CREATE TABLE IF NOT EXISTS broadcast_reads (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        last_read_id INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `)
+
     // PostgreSQL schema patches
     try {
       await query(`ALTER TABLE sectors ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES sectors(id) ON DELETE CASCADE;`)
@@ -197,6 +205,15 @@ async function runMigrations() {
         FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (sector_id) REFERENCES sectors(id) ON DELETE CASCADE
+      );
+    `)
+
+    await query(`
+      CREATE TABLE IF NOT EXISTS broadcast_reads (
+        user_id INTEGER PRIMARY KEY,
+        last_read_id INTEGER NOT NULL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
     `)
 

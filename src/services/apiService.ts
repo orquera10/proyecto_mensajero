@@ -136,6 +136,22 @@ export const apiService = {
     return res
   },
 
+  async getBroadcastUnreadCount(): Promise<{ unreadCount: number; lastReadId: number }> {
+    return this.request<{ unreadCount: number; lastReadId: number }>(
+      '/api/messages/broadcast/unread-count'
+    )
+  },
+
+  async markBroadcastAsRead(lastReadId?: number): Promise<{ success: boolean; lastReadId: number }> {
+    return this.request<{ success: boolean; lastReadId: number }>(
+      '/api/messages/broadcast/read',
+      {
+        method: 'POST',
+        body: JSON.stringify({ last_read_id: lastReadId }),
+      }
+    )
+  },
+
   async uploadFile(file: File): Promise<{
     file_url: string
     file_name: string
