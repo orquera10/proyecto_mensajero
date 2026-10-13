@@ -77,7 +77,7 @@ export const App: React.FC = () => {
       const standalone =
         window.matchMedia('(display-mode: standalone)').matches ||
         (window.navigator as any).standalone
-      if (!standalone) {
+      if (!standalone && isMobileDevice) {
         setShowInstallBanner(true)
       }
     }
@@ -781,9 +781,9 @@ export const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 flex h-full w-full max-w-full flex-col bg-slate-950 overflow-hidden">
-      {/* PWA Install Banner (Mobile & Web) - hidden on mobile when viewing active chat */}
-      {showInstallBanner && (
-        <div className={`z-40 shrink-0 ${activeUser ? 'hidden md:block' : 'block'}`}>
+      {/* PWA Install Banner (Solo Móviles) - Oculto en PC y pantallas de escritorio */}
+      {showInstallBanner && isMobileDevice && (
+        <div className={`z-40 shrink-0 md:hidden ${activeUser ? 'hidden' : 'block'}`}>
           <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-blue-700 to-indigo-700 px-3 sm:px-4 py-2 text-xs text-white shadow-md select-none">
             <div className="flex items-center gap-2 truncate">
               <Smartphone className="h-4 w-4 shrink-0 text-blue-200" />
