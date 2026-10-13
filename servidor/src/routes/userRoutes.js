@@ -77,7 +77,7 @@ userRouter.get('/', authenticateToken, async (req, res) => {
       return {
         id: u.id,
         username: u.username,
-        display_name: u.display_name,
+        display_name: (u.display_name || '').replace(/[\uFFFD\uFFFE]/g, 'ñ').replace(/Maga[^\w\s]?a/gi, 'Magaña'),
         role: u.role,
         sector_id: u.sector_id,
         sector_name: u.sector_name,

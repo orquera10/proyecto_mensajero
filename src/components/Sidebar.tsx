@@ -7,7 +7,7 @@ import {
   Star,
 } from 'lucide-react'
 import type { User, Sector, PresenceStatus } from '../types'
-import { apiService } from '../services/apiService'
+import { apiService, sanitizeName } from '../services/apiService'
 
 interface SidebarProps {
   users: User[]
@@ -123,11 +123,13 @@ const SectorTreeItem: React.FC<{
           {node.users.map((user) => {
             const isActive = activeUser?.id === user.id
 
+            const displayName = sanitizeName(user.display_name)
+
             return (
               <button
                 key={user.id}
                 onClick={() => onSelectUser(user)}
-                title={`${user.display_name}${user.sector_short_path ? ` • ${user.sector_short_path}` : ''}`}
+                title={`${displayName}${user.sector_short_path ? ` • ${user.sector_short_path}` : ''}`}
                 style={{ paddingLeft: `${Math.max(10, level * 12 + 8)}px` }}
                 className={`flex w-full items-center gap-3 rounded-lg py-2.5 sm:py-2 pr-2.5 min-h-[48px] active:scale-[0.99] text-left transition cursor-pointer ${
                   isActive
@@ -144,7 +146,7 @@ const SectorTreeItem: React.FC<{
                           ? user.avatar_url
                           : `${apiService.getServerUrl()}${user.avatar_url}`
                       }
-                      alt={user.display_name}
+                      alt={displayName}
                       className="h-9 w-9 rounded-lg object-cover border border-slate-700/50"
                       onError={(e) => {
                         e.currentTarget.style.display = 'none'
@@ -160,7 +162,7 @@ const SectorTreeItem: React.FC<{
                       isActive ? 'bg-blue-700 text-white' : 'bg-slate-800 text-blue-400'
                     }`}
                   >
-                    {user.display_name.charAt(0).toUpperCase()}
+                    {displayName.charAt(0).toUpperCase()}
                   </div>
                   <span
                     className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 ${
@@ -181,7 +183,7 @@ const SectorTreeItem: React.FC<{
                             : 'font-semibold'
                         }`}
                       >
-                        {user.display_name}
+                        {displayName}
                       </span>
                       {user.is_leader && (
                         <span title="Encargado del Sector" className="inline-flex items-center">

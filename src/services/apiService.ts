@@ -5,6 +5,21 @@ import { APP_CONFIG } from '../config/appConfig'
 let currentToken: string = storageService.getToken() || ''
 let currentServerUrl: string = APP_CONFIG.serverUrl
 
+export function sanitizeName(name?: string): string {
+  if (!name) return ''
+  return name
+    .replace(/[\uFFFD\uFFFE]/g, 'ñ')
+    .replace(/Maga[^\w\s]?a/gi, 'Magaña')
+    .replace(/Maga\s*a/gi, 'Magaña')
+}
+
+export function sanitizeUser(u: User): User {
+  return {
+    ...u,
+    display_name: sanitizeName(u.display_name),
+  }
+}
+
 export const apiService = {
   setToken(token: string) {
     currentToken = token
@@ -44,10 +59,14 @@ export const apiService = {
   },
 
   async login(username: string, password: string): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/api/auth/login', {
+    const res = await this.request<AuthResponse>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     })
+    if (res.user) {
+      res.user = sanitizeUser(res.user)
+    }
+    return res
   },
 
   async windowsSso(
@@ -55,18 +74,30 @@ export const apiService = {
     domain?: string,
     display_name?: string
   ): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/api/auth/windows-sso', {
+    const res = await this.request<AuthResponse>('/api/auth/windows-sso', {
       method: 'POST',
-      body: JSON.stringify({ username, domain, display_name }),
+      body: JSON.stringify({ username, domain, display_name: sanitizeName(display_name) }),
     })
+    if (res.user) {
+      res.user = sanitizeUser(res.user)
+    }
+    return res
   },
 
   async getMe(): Promise<{ user: User }> {
-    return this.request<{ user: User }>('/api/auth/me')
+    const res = await this.request<{ user: User }>('/api/auth/me')
+    if (res.user) {
+      res.user = sanitizeUser(res.user)
+    }
+    return res
   },
 
   async getUsers(): Promise<{ users: User[] }> {
-    return this.request<{ users: User[] }>('/api/users')
+    const res = await this.request<{ users: User[] }>('/api/users')
+    if (res.users) {
+      res.users = res.users.map(sanitizeUser)
+    }
+    return res
   },
 
   async getSectors(): Promise<{ sectors: Sector[] }> {
@@ -110,10 +141,14 @@ export const apiService = {
   },
 
   async updateProfile(displayName: string): Promise<{ message: string; user: User }> {
-    return this.request<{ message: string; user: User }>('/api/auth/profile', {
+    const res = await this.request<{ message: string; user: User }>('/api/auth/profile', {
       method: 'POST',
       body: JSON.stringify({ display_name: displayName }),
     })
+    if (res.user) {
+      res.user = sanitizeUser(res.user)
+    }
+    return res
   },
 
   async changePassword(new_password: string): Promise<{ message: string }> {
@@ -124,18 +159,26 @@ export const apiService = {
   },
 
   async updateAvatar(avatarUrl: string): Promise<{ message: string; user: User; avatar_url: string }> {
-    return this.request<{ message: string; user: User; avatar_url: string }>('/api/auth/avatar', {
+    const res = await this.request<{ message: string; user: User; avatar_url: string }>('/api/auth/avatar', {
       method: 'POST',
       body: JSON.stringify({ avatar_url: avatarUrl }),
     })
+    if (res.user) {
+      res.user = sanitizeUser(res.user)
+    }
+    return res
   },
 
   async uploadAvatar(file: File): Promise<{ message: string; user: User; avatar_url: string }> {
     const formData = new FormData()
     formData.append('avatar', file)
-    return this.request<{ message: string; user: User; avatar_url: string }>('/api/auth/avatar', {
+    const res = await this.request<{ message: string; user: User; avatar_url: string }>('/api/auth/avatar', {
       method: 'POST',
       body: formData,
     })
+    if (res.user) {
+      res.user = sanitizeUser(res.user)
+    }
+    return res
   },
 }

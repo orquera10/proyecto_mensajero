@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { apiService } from './services/apiService'
+import { apiService, sanitizeName } from './services/apiService'
 import { socketService } from './services/socketService'
 import { storageService } from './services/storageService'
 import { notificationService } from './services/notificationService'
@@ -359,14 +359,15 @@ export const App: React.FC = () => {
       },
 
       onUserProfileUpdate: ({ userId, display_name }) => {
+        const cleanName = sanitizeName(display_name)
         setUsers((prev) =>
-          prev.map((u) => (Number(u.id) === Number(userId) ? { ...u, display_name } : u))
+          prev.map((u) => (Number(u.id) === Number(userId) ? { ...u, display_name: cleanName } : u))
         )
         if (activeUserRef.current && Number(activeUserRef.current.id) === Number(userId)) {
-          setActiveUser((prev) => (prev ? { ...prev, display_name } : null))
+          setActiveUser((prev) => (prev ? { ...prev, display_name: cleanName } : null))
         }
         if (currentUserRef.current && Number(currentUserRef.current.id) === Number(userId)) {
-          const updated = { ...currentUserRef.current, display_name }
+          const updated = { ...currentUserRef.current, display_name: cleanName }
           setCurrentUser(updated)
           storageService.saveUser(updated)
         }

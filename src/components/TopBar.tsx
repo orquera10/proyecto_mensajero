@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
 } from 'lucide-react'
 import type { User, PresenceStatus } from '../types'
-import { apiService } from '../services/apiService'
+import { apiService, sanitizeName } from '../services/apiService'
 
 interface TopBarProps {
   currentUser: User
@@ -82,7 +82,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                       ? currentUser.avatar_url
                       : `${serverUrl}${currentUser.avatar_url}`
                   }
-                  alt={currentUser.display_name}
+                  alt={sanitizeName(currentUser.display_name)}
                   className="h-5 w-5 rounded-full object-cover border border-slate-700/60"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none'
@@ -93,7 +93,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             ) : (
               <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${activeOption.color}`} />
             )}
-            <span className="font-medium truncate">{currentUser.display_name}</span>
+            <span className="font-medium truncate">{sanitizeName(currentUser.display_name)}</span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 ml-0.5" />
           </button>
 

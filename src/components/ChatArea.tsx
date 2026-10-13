@@ -14,7 +14,7 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 import type { User, Message, PresenceStatus } from '../types'
-import { apiService } from '../services/apiService'
+import { apiService, sanitizeName } from '../services/apiService'
 
 interface ChatAreaProps {
   activeUser: User | null
@@ -281,7 +281,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             Suelta el archivo aquí para enviarlo
           </h3>
           <p className="mt-1 text-xs text-blue-300">
-            Se enviará de forma segura y directa a <span className="font-semibold text-white">{activeUser.display_name}</span>
+            Se enviará de forma segura y directa a <span className="font-semibold text-white">{sanitizeName(activeUser.display_name)}</span>
           </p>
         </div>
       )}
@@ -289,6 +289,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       {/* Contact Header */}
       {(() => {
         const sectorLabel = getSectorLabel(activeUser)
+        const activeDisplayName = sanitizeName(activeUser.display_name)
         return (
           <header className="flex min-h-16 items-center justify-between border-b border-slate-800 bg-slate-900/60 px-3 md:px-5 py-2 backdrop-blur shrink-0">
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
@@ -309,7 +310,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         ? activeUser.avatar_url
                         : `${serverUrl}${activeUser.avatar_url}`
                     }
-                    alt={activeUser.display_name}
+                    alt={activeDisplayName}
                     className="h-10 w-10 rounded-xl object-cover border border-slate-700/50"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'
@@ -323,7 +324,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     activeUser.avatar_url ? 'hidden' : 'flex'
                   }`}
                 >
-                  {activeUser.display_name.charAt(0).toUpperCase()}
+                  {activeDisplayName.charAt(0).toUpperCase()}
                 </div>
                 <span
                   className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 ${
@@ -336,7 +337,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 {/* Contact Name */}
                 <div className="flex items-center gap-1.5 min-w-0">
                   <h2 className="text-sm font-semibold text-white truncate">
-                    {activeUser.display_name}
+                    {activeDisplayName}
                   </h2>
                   {activeUser.is_leader && (
                     <span title="Encargado del Sector" className="inline-flex items-center shrink-0">
