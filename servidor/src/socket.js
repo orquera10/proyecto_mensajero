@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken'
 import { config } from './config.js'
 import { query } from './db.js'
+import { canUserBroadcast } from './routes/messageRoutes.js'
 
 // Map of userId -> { sockets: Set<string>, presence: 'online'|'away'|'dnd', statusText: string }
 const userPresenceMap = new Map()
@@ -184,6 +185,80 @@ export function initSocketIO(io) {
       } catch (err) {
         console.error('Error saving message in socket:', err)
         callback?.({ error: 'Error al enviar el mensaje' })
+      }
+    })
+
+    // Handle Broadcast Announcement (Canal de Difusión: Informática y Encargados)
+    socket.on('broadcast:send', async (data, callback) => {
+      try {
+        const { content, message_type, file_url, file_name, file_size, file_mime } = data
+
+        if (!content && !file_url) {
+          return callback?.({ error: 'El comunicado no puede estar vacío' })
+        }
+
+        const isAllowed = await canUserBroadcast(userId)
+        if (!isAllowed) {
+          return callback?.({
+            error: 'Solo el personal de Informática y los Encargados de Área pueden publicar comunicados institucionales',
+          })
+        }
+
+        // Insert broadcast message (receiver_id = NULL, sector_id = NULL)
+        const { insertId } = await query(
+          `INSERT INTO messages (sender_id, receiver_id, sector_id, content, message_type, file_url, file_name, file_size, file_mime, status, is_read)
+           VALUES (?, NULL, NULL, ?, ?, ?, ?, ?, ?, 'delivered', TRUE)`,
+          [
+            userId,
+            content || '',
+            message_type || 'text',
+            file_url || null,
+            file_name || null,
+            file_size || null,
+            file_mime || null,
+          ]
+        )
+
+        const { rows: uRows } = await query(
+          `SELECT u.display_name, u.avatar_url, u.role, u.is_leader, s.name as sector_name, s.color as sector_color
+           FROM users u
+           LEFT JOIN sectors s ON u.sector_id = s.id
+           WHERE u.id = ?`,
+          [userId]
+        )
+        const sender = uRows[0] || {}
+
+        const messagePayload = {
+          id: insertId,
+          sender_id: userId,
+          receiver_id: null,
+          sector_id: null,
+          content: content || '',
+          message_type: message_type || 'text',
+          file_url: file_url || null,
+          file_name: file_name || null,
+          file_size: file_size || null,
+          file_mime: file_mime || null,
+          status: 'delivered',
+          is_read: true,
+          created_at: new Date().toISOString(),
+          sender_name: (sender.display_name || user.display_name || '')
+            .replace(/[\uFFFD\uFFFE]/g, 'ñ')
+            .replace(/Maga[^\w\s]?a/gi, 'Magaña'),
+          sender_avatar: sender.avatar_url || null,
+          sender_role: sender.role || 'user',
+          sender_is_leader: Boolean(sender.is_leader),
+          sender_sector: sender.sector_name || 'General',
+          sender_sector_color: sender.sector_color || '#3b82f6',
+        }
+
+        // Emit to ALL connected users
+        io.emit('broadcast:receive', messagePayload)
+
+        callback?.({ success: true, message: messagePayload })
+      } catch (err) {
+        console.error('Error enviando comunicado de difusión:', err)
+        callback?.({ error: 'Error al publicar el comunicado institucional' })
       }
     })
 

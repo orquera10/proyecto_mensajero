@@ -47,6 +47,75 @@ messageRouter.get('/history/:otherUserId', authenticateToken, async (req, res) =
   }
 })
 
+// Helper para validar si un usuario puede emitir comunicados institucionales (Informática o Encargados)
+export async function canUserBroadcast(userId) {
+  try {
+    const { rows } = await query(
+      `SELECT u.role, u.is_leader, s.name as sector_name
+       FROM users u
+       LEFT JOIN sectors s ON u.sector_id = s.id
+       WHERE u.id = ?`,
+      [userId]
+    )
+    if (!rows || rows.length === 0) return false
+    const u = rows[0]
+    if (u.role === 'admin' || Boolean(u.is_leader)) return true
+    const sec = (u.sector_name || '').toLowerCase()
+    if (sec.includes('sistema') || sec.includes('informa') || sec.includes('ti')) return true
+    return false
+  } catch (e) {
+    console.warn('Error checking broadcast permission:', e)
+    return false
+  }
+}
+
+// GET /api/messages/broadcast - Historial de comunicados y avisos institucionales
+messageRouter.get('/broadcast', authenticateToken, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit || '40', 10)
+    const beforeId = req.query.before ? parseInt(req.query.before, 10) : null
+
+    let sql = `
+      SELECT m.*, 
+             u.display_name as sender_name, 
+             u.avatar_url as sender_avatar, 
+             u.role as sender_role, 
+             u.is_leader as sender_is_leader, 
+             s.name as sender_sector,
+             s.color as sender_sector_color
+      FROM messages m
+      JOIN users u ON m.sender_id = u.id
+      LEFT JOIN sectors s ON u.sector_id = s.id
+      WHERE m.receiver_id IS NULL AND m.sector_id IS NULL
+    `
+    const params = []
+
+    if (beforeId) {
+      sql += ` AND m.id < ?`
+      params.push(beforeId)
+    }
+
+    sql += ` ORDER BY m.id DESC LIMIT ?`
+    params.push(limit)
+
+    const { rows } = await query(sql, params)
+    const messageRows = rows || []
+
+    const messages = messageRows.slice().reverse().map((m) => ({
+      ...m,
+      sender_name: (m.sender_name || '').replace(/[\uFFFD\uFFFE]/g, 'ñ').replace(/Maga[^\w\s]?a/gi, 'Magaña'),
+    }))
+
+    res.json({
+      messages,
+      hasMore: messageRows.length === limit,
+    })
+  } catch (err) {
+    console.error('Error fetching broadcast messages:', err)
+    res.status(500).json({ error: 'Error al obtener mensajes de difusión' })
+  }
+})
+
 // GET /api/messages/sector/:sectorId - Get sector channel messages
 messageRouter.get('/sector/:sectorId', authenticateToken, async (req, res) => {
   try {

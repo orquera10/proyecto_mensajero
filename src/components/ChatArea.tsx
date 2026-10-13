@@ -12,6 +12,8 @@ import {
   UploadCloud,
   Star,
   ArrowLeft,
+  Lock,
+  Megaphone,
 } from 'lucide-react'
 import type { User, Message, PresenceStatus } from '../types'
 import { apiService, sanitizeName } from '../services/apiService'
@@ -27,6 +29,9 @@ interface ChatAreaProps {
   hasMore?: boolean
   isLoadingMore?: boolean
   onLoadMore?: () => Promise<void>
+  isBroadcast?: boolean
+  canPublishBroadcast?: boolean
+  currentUser?: User | null
 }
 
 const presenceColors: Record<PresenceStatus, string> = {
@@ -75,6 +80,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   hasMore,
   isLoadingMore,
   onLoadMore,
+  isBroadcast = false,
+  canPublishBroadcast = false,
+  currentUser,
 }) => {
   const [inputText, setInputText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -90,7 +98,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   const serverUrl = apiService.getServerUrl()
 
-  // Track active user changes to trigger instant scroll to bottom
+  // Track active user or broadcast changes to trigger instant scroll to bottom
+  const prevIsBroadcastRef = useRef<boolean>(false)
+  if (isBroadcast !== prevIsBroadcastRef.current) {
+    prevIsBroadcastRef.current = isBroadcast
+    isInitialLoadRef.current = true
+  }
+
   if (activeUser && activeUser.id !== prevActiveUserIdRef.current) {
     prevActiveUserIdRef.current = activeUser.id
     isInitialLoadRef.current = true
@@ -101,7 +115,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (typeof window !== 'undefined' && (window.scrollX !== 0 || window.scrollY !== 0)) {
       window.scrollTo(0, 0)
     }
-  }, [activeUser?.id])
+  }, [activeUser?.id, isBroadcast])
 
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -151,7 +165,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    if (!inputText.trim() || !activeUser) return
+    if (!inputText.trim()) return
+    if (!activeUser && !isBroadcast) return
+    if (isBroadcast && !canPublishBroadcast) return
     onSendMessage(inputText.trim())
     setInputText('')
   }
@@ -162,13 +178,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       e.preventDefault()
       handleSend()
     } else {
-      onTyping()
+      if (!isBroadcast) {
+        onTyping()
+      }
     }
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (isBroadcast && !canPublishBroadcast) return
 
     try {
       setIsUploading(true)
@@ -185,6 +204,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    if (isBroadcast && !canPublishBroadcast) return
     dragCounter.current += 1
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
       setIsDragging(true)
@@ -194,6 +214,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    if (isBroadcast && !canPublishBroadcast) return
     dragCounter.current -= 1
     if (dragCounter.current <= 0) {
       setIsDragging(false)
@@ -212,8 +233,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     setIsDragging(false)
     dragCounter.current = 0
 
+    if (isBroadcast && !canPublishBroadcast) return
+
     const files = e.dataTransfer.files
-    if (files && files.length > 0 && activeUser) {
+    if (files && files.length > 0 && (activeUser || isBroadcast)) {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         try {
@@ -230,8 +253,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   // Paste image/file from clipboard (e.g. Win+Shift+S screenshots)
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (isBroadcast && !canPublishBroadcast) return
     const files = e.clipboardData?.files
-    if (files && files.length > 0 && activeUser) {
+    if (files && files.length > 0 && (activeUser || isBroadcast)) {
       e.preventDefault()
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
@@ -247,7 +271,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
   }
 
-  if (!activeUser) {
+  if (!activeUser && !isBroadcast) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center bg-slate-950 p-8 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-blue-400 border border-slate-800 shadow-inner">
@@ -257,7 +281,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           Mensajería Institucional
         </h2>
         <p className="mt-1 max-w-sm text-xs text-slate-500">
-          Selecciona un contacto o sector del panel izquierdo para comenzar una conversación segura en tiempo real.
+          Selecciona un contacto o abre el canal de Avisos y Difusión del panel izquierdo para comenzar.
         </p>
       </div>
     )
@@ -281,27 +305,69 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             Suelta el archivo aquí para enviarlo
           </h3>
           <p className="mt-1 text-xs text-blue-300">
-            Se enviará de forma segura y directa a <span className="font-semibold text-white">{sanitizeName(activeUser.display_name)}</span>
+            {isBroadcast ? (
+              <span>Se publicará en el <span className="font-semibold text-white">Canal de Difusión Institucional</span></span>
+            ) : (
+              <span>Se enviará de forma segura y directa a <span className="font-semibold text-white">{sanitizeName(activeUser?.display_name)}</span></span>
+            )}
           </p>
         </div>
       )}
 
-      {/* Contact Header */}
-      {(() => {
-        const sectorLabel = getSectorLabel(activeUser)
-        const activeDisplayName = sanitizeName(activeUser.display_name)
-        return (
-          <header className="flex min-h-16 items-center justify-between border-b border-slate-800 bg-slate-900/60 px-3 md:px-5 py-2 backdrop-blur shrink-0">
-            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
-              {onBack && (
-                <button
-                  onClick={onBack}
-                  className="md:hidden -ml-1 rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer shrink-0"
-                  title="Volver a los contactos"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                </button>
-              )}
+      {/* Header */}
+      {isBroadcast ? (
+        <header className="flex min-h-16 items-center justify-between border-b border-slate-800 bg-slate-900/80 px-3 md:px-5 py-2 backdrop-blur shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1 mr-2">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="md:hidden -ml-1 rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer shrink-0"
+                title="Volver a los contactos"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            )}
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 text-white shadow-md shadow-indigo-500/20">
+              <Megaphone className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-white truncate">
+                  Avisos y Difusión Institucional
+                </h2>
+                <span className="rounded-md bg-blue-500/20 border border-blue-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 uppercase tracking-wide">
+                  General
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 truncate">
+                Canal oficial de comunicados y novedades para toda la institución
+              </p>
+            </div>
+          </div>
+          <div className="hidden lg:flex items-center gap-2 text-slate-400 shrink-0">
+            <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
+              <Shield className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Canal Institucional</span>
+            </div>
+          </div>
+        </header>
+      ) : activeUser ? (
+        (() => {
+          const sectorLabel = getSectorLabel(activeUser)
+          const activeDisplayName = sanitizeName(activeUser.display_name)
+          return (
+            <header className="flex min-h-16 items-center justify-between border-b border-slate-800 bg-slate-900/60 px-3 md:px-5 py-2 backdrop-blur shrink-0">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 mr-2">
+                {onBack && (
+                  <button
+                    onClick={onBack}
+                    className="md:hidden -ml-1 rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer shrink-0"
+                    title="Volver a los contactos"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                )}
               <div className="relative shrink-0">
                 {activeUser.avatar_url ? (
                   <img
@@ -379,7 +445,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
           </header>
         )
-      })()}
+      })()
+    ) : null}
 
       {/* Messages List */}
       <div
@@ -414,8 +481,24 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center text-xs text-slate-500">
-            <p>No hay mensajes previos con este contacto.</p>
-            <p className="text-slate-600 mt-1">Escribe un mensaje o adjunta un archivo para iniciar la conversación.</p>
+            {isBroadcast ? (
+              <>
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-blue-400 border border-slate-800 mb-2">
+                  <Megaphone className="h-6 w-6 opacity-75" />
+                </div>
+                <p className="font-semibold text-slate-300">No hay comunicados oficiales aún.</p>
+                <p className="text-slate-500 mt-1 max-w-xs">
+                  {canPublishBroadcast
+                    ? 'Escribe un comunicado o adjunta un archivo para informar a toda la institución.'
+                    : 'Aquí se publicarán las novedades y comunicados oficiales de la institución.'}
+                </p>
+              </>
+            ) : (
+              <>
+                <p>No hay mensajes previos con este contacto.</p>
+                <p className="text-slate-600 mt-1">Escribe un mensaje o adjunta un archivo para iniciar la conversación.</p>
+              </>
+            )}
           </div>
         ) : (
           messages.map((msg) => {
@@ -433,6 +516,48 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
                   }`}
                 >
+                  {/* Broadcast Sender Header (Autor, Sector, Rango) */}
+                  {isBroadcast && (
+                    <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-white/10 text-xs">
+                      {msg.sender_avatar ? (
+                        <img
+                          src={
+                            msg.sender_avatar.startsWith('http') || msg.sender_avatar.startsWith('data:')
+                              ? msg.sender_avatar
+                              : `${serverUrl}${msg.sender_avatar}`
+                          }
+                          alt=""
+                          className="h-5 w-5 rounded-full object-cover shrink-0 border border-white/20"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      ) : (
+                        <div className="h-5 w-5 rounded-full bg-blue-500/30 text-blue-200 flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {(sanitizeName(msg.sender_name) || '?').charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <span className={`font-semibold text-[11px] truncate ${isMine ? 'text-amber-200' : 'text-amber-400'}`}>
+                        {sanitizeName(msg.sender_name) || 'Comunicado Institucional'}
+                      </span>
+                      {msg.sender_sector && (
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-medium truncate ${
+                          isMine ? 'bg-blue-700/70 text-blue-100' : 'bg-slate-800 text-slate-300 border border-slate-700/60'
+                        }`}>
+                          {msg.sender_sector}
+                        </span>
+                      )}
+                      {(msg.sender_is_leader || msg.sender_role === 'admin') && (
+                        <span
+                          title={msg.sender_role === 'admin' ? 'Administrador' : 'Encargado de Área'}
+                          className="text-amber-400 flex items-center shrink-0"
+                        >
+                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Text Content */}
                   {msg.content && (
                     <p className="leading-relaxed whitespace-pre-wrap select-text">{msg.content}</p>
@@ -483,7 +608,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         minute: '2-digit',
                       })}
                     </span>
-                    {isMine && (() => {
+                    {isMine && !isBroadcast && (() => {
                       const isRead = msg.status === 'read' || msg.is_read === true || (msg.is_read as any) === 1
                       const isDelivered = msg.status === 'delivered'
 
@@ -526,60 +651,78 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input Box */}
+      {/* Message Input Box or Read-Only Notice */}
       <div className="shrink-0 p-2.5 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-900/60 backdrop-blur-md">
-        <form onSubmit={handleSend} className="flex items-end gap-2">
-          {/* Hidden File Picker */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            className="hidden"
-          />
-
-          {/* Attachment Button */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            title="Adjuntar archivo o imagen"
-            className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white active:scale-95 transition cursor-pointer"
-          >
-            {isUploading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
-            ) : (
-              <Paperclip className="h-4 w-4" />
-            )}
-          </button>
-
-          {/* Textarea container */}
-          <div
-            className={`flex-1 rounded-2xl border transition-all ${
-              isDragging
-                ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
-                : 'border-slate-800 bg-slate-950/80 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/20'
-            } px-3.5 py-2`}
-          >
-            <textarea
-              rows={1}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder="Mensaje... (Enter para enviar)"
-              className="w-full resize-none bg-transparent text-sm sm:text-xs text-white placeholder-slate-500 focus:outline-none max-h-32"
-            />
+        {isBroadcast && !canPublishBroadcast ? (
+          <div className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-2xl border border-slate-800 bg-slate-950/70 text-xs text-slate-400">
+            <Lock className="h-4 w-4 text-amber-400/90 shrink-0" />
+            <span className="text-center text-[11px] sm:text-xs">
+              Canal informativo: Solo el personal de <strong className="text-slate-200">Informática</strong> y los <strong className="text-slate-200">Encargados de Área</strong> pueden publicar comunicados.
+            </span>
           </div>
+        ) : (
+          <form onSubmit={handleSend} className="flex items-end gap-2">
+            {/* Hidden File Picker */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+            />
 
-          {/* Send Button */}
-          <button
-            type="submit"
-            disabled={!inputText.trim()}
-            className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30 transition hover:bg-blue-500 active:scale-95 disabled:opacity-40 disabled:hover:bg-blue-600 cursor-pointer"
-          >
-            <Send className="h-4 w-4" />
-          </button>
-        </form>
+            {/* Attachment Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              title={isBroadcast ? 'Adjuntar documento o imagen al comunicado' : 'Adjuntar archivo o imagen'}
+              className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white active:scale-95 transition cursor-pointer"
+            >
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
+            </button>
+
+            {/* Textarea container */}
+            <div
+              className={`flex-1 rounded-2xl border transition-all ${
+                isDragging
+                  ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
+                  : 'border-slate-800 bg-slate-950/80 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/20'
+              } px-3.5 py-2`}
+            >
+              <textarea
+                rows={1}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                placeholder={
+                  isBroadcast
+                    ? 'Escribir comunicado institucional para toda la empresa... (Enter para publicar)'
+                    : 'Mensaje... (Enter para enviar)'
+                }
+                className="w-full resize-none bg-transparent text-sm sm:text-xs text-white placeholder-slate-500 focus:outline-none max-h-32"
+              />
+            </div>
+
+            {/* Send / Publish Button */}
+            <button
+              type="submit"
+              disabled={!inputText.trim()}
+              title={isBroadcast ? 'Publicar comunicado oficial' : 'Enviar mensaje'}
+              className={`flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full text-white shadow-lg transition active:scale-95 disabled:opacity-40 cursor-pointer ${
+                isBroadcast
+                  ? 'bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-indigo-600/30 hover:brightness-110 disabled:hover:brightness-100'
+                  : 'bg-blue-600 shadow-blue-600/30 hover:bg-blue-500 disabled:hover:bg-blue-600'
+              }`}
+            >
+              {isBroadcast ? <Megaphone className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   )

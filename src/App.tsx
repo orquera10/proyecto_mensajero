@@ -27,6 +27,14 @@ export const App: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([])
   const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(false)
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
+
+  // Broadcast (Canal de Difusión e Información Institucional)
+  const [isBroadcastActive, setIsBroadcastActive] = useState<boolean>(false)
+  const [broadcastMessages, setBroadcastMessages] = useState<Message[]>([])
+  const [hasMoreBroadcast, setHasMoreBroadcast] = useState<boolean>(false)
+  const [isLoadingMoreBroadcast, setIsLoadingMoreBroadcast] = useState<boolean>(false)
+  const [broadcastUnreadCount, setBroadcastUnreadCount] = useState<number>(0)
+
   const [myPresence, setMyPresence] = useState<PresenceStatus>('online')
   const [typingMap, setTypingMap] = useState<Record<number, NodeJS.Timeout>>({})
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
@@ -35,10 +43,21 @@ export const App: React.FC = () => {
   const presenceMapRef = useRef<Record<number, { presence: PresenceStatus; statusText?: string }>>({})
   const activeUserRef = useRef<User | null>(activeUser)
   activeUserRef.current = activeUser
+  const isBroadcastActiveRef = useRef<boolean>(false)
+  isBroadcastActiveRef.current = isBroadcastActive
   const currentUserRef = useRef<User | null>(currentUser)
   currentUserRef.current = currentUser
   const usersRef = useRef<User[]>(users)
   usersRef.current = users
+
+  // Permisos para publicar en Difusión (Informática y Encargados de Área)
+  const canPublishBroadcast = Boolean(
+    currentUser?.role === 'admin' ||
+    currentUser?.is_leader ||
+    /sistema|informa|ti/i.test(currentUser?.sector_name || '') ||
+    /sistema|informa|ti/i.test(currentUser?.sector_short_path || '') ||
+    /sistema|informa|ti/i.test(currentUser?.sector_full_path || '')
+  )
 
   // PWA & Mobile Install detection
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
@@ -373,6 +392,27 @@ export const App: React.FC = () => {
         }
       },
 
+      onBroadcastReceived: (message) => {
+        const me = currentUserRef.current
+        const isMine = Number(message.sender_id) === Number(me?.id)
+
+        setBroadcastMessages((prev) => {
+          if (prev.some((m) => m.id === message.id)) return prev
+          return [...prev, { ...message, isMine }]
+        })
+
+        if (!isBroadcastActiveRef.current) {
+          setBroadcastUnreadCount((prev) => prev + 1)
+          if (!isMine) {
+            notificationService.notifyIncomingMessage(
+              `📢 ${sanitizeName(message.sender_name) || 'Aviso Institucional'}`,
+              message.content || (message.message_type === 'image' ? '📷 Imagen adjunta' : '📎 Archivo adjunto'),
+              true
+            )
+          }
+        }
+      },
+
       onDisconnect: () => {
         console.warn('Socket desconectado')
       },
@@ -546,6 +586,7 @@ export const App: React.FC = () => {
   // Select Contact & Load Chat History
   const handleSelectUser = useCallback(
     async (user: User) => {
+      setIsBroadcastActive(false)
       setActiveUser(user)
       setMessages([])
       setHasMoreMessages(false)
@@ -576,8 +617,61 @@ export const App: React.FC = () => {
     [currentUser]
   )
 
+  // Select Broadcast Channel & Load Broadcast History
+  const handleSelectBroadcast = useCallback(async () => {
+    setIsBroadcastActive(true)
+    setActiveUser(null)
+    setBroadcastUnreadCount(0)
+
+    try {
+      const res = await apiService.getBroadcastHistory({ limit: 40 })
+      setBroadcastMessages(
+        (res.messages || []).map((m) => ({
+          ...m,
+          isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+        }))
+      )
+      setHasMoreBroadcast(Boolean(res.hasMore))
+    } catch (err) {
+      console.error('Error loading broadcast history:', err)
+    }
+  }, [])
+
   // Load older messages when scrolling upwards (como WhatsApp)
   const handleLoadMore = useCallback(async () => {
+    if (isBroadcastActive) {
+      if (isLoadingMoreBroadcast || !hasMoreBroadcast || broadcastMessages.length === 0) return
+      const oldestId = broadcastMessages[0].id
+
+      try {
+        setIsLoadingMoreBroadcast(true)
+        const res = await apiService.getBroadcastHistory({
+          before: oldestId,
+          limit: 30,
+        })
+
+        if (res.messages && res.messages.length > 0) {
+          const older = res.messages.map((m) => ({
+            ...m,
+            isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+          }))
+
+          setBroadcastMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id))
+            const filtered = older.filter((m) => !existingIds.has(m.id))
+            return [...filtered, ...prev]
+          })
+        }
+
+        setHasMoreBroadcast(Boolean(res.hasMore))
+      } catch (err) {
+        console.error('Error loading older broadcast messages:', err)
+      } finally {
+        setIsLoadingMoreBroadcast(false)
+      }
+      return
+    }
+
     if (!activeUser || isLoadingMore || !hasMoreMessages || messages.length === 0) return
     const oldestId = messages[0].id
 
@@ -607,11 +701,62 @@ export const App: React.FC = () => {
     } finally {
       setIsLoadingMore(false)
     }
-  }, [activeUser, isLoadingMore, hasMoreMessages, messages, currentUser])
+  }, [
+    isBroadcastActive,
+    isLoadingMoreBroadcast,
+    hasMoreBroadcast,
+    broadcastMessages,
+    activeUser,
+    isLoadingMore,
+    hasMoreMessages,
+    messages,
+    currentUser,
+  ])
 
-  // Send Text Message
+  // Send Text Message (Direct or Broadcast)
   const handleSendMessage = async (content: string) => {
-    if (!activeUser || !currentUser) return
+    if (!currentUser) return
+
+    if (isBroadcastActive) {
+      if (!canPublishBroadcast) return
+      const tempId = Date.now()
+      const optimisticMsg: Message = {
+        id: tempId,
+        sender_id: currentUser.id,
+        receiver_id: null,
+        content,
+        message_type: 'text',
+        status: 'sent',
+        is_read: true,
+        created_at: new Date().toISOString(),
+        isMine: true,
+        sender_name: currentUser.display_name,
+        sender_avatar: currentUser.avatar_url,
+        sender_role: currentUser.role,
+        sender_is_leader: Boolean(currentUser.is_leader),
+        sender_sector: currentUser.sector_name,
+      }
+
+      setBroadcastMessages((prev) => [...prev, optimisticMsg])
+
+      try {
+        const sent = await socketService.sendBroadcast({
+          content,
+          message_type: 'text',
+        })
+        setBroadcastMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId ? { ...sent, isMine: true, sender_name: currentUser.display_name } : m
+          )
+        )
+      } catch (err: any) {
+        console.error('Failed to send broadcast message:', err)
+        alert(`Error al publicar comunicado: ${err.message}`)
+      }
+      return
+    }
+
+    if (!activeUser) return
     const tempId = Date.now()
     const optimisticMsg: Message = {
       id: tempId,
@@ -659,9 +804,60 @@ export const App: React.FC = () => {
     }
   }
 
-  // Send File / Image Attachment
+  // Send File / Image Attachment (Direct or Broadcast)
   const handleSendFile = async (file: File) => {
-    if (!activeUser || !currentUser) return
+    if (!currentUser) return
+
+    if (isBroadcastActive) {
+      if (!canPublishBroadcast) return
+      try {
+        const uploadRes = await apiService.uploadFile(file)
+        const tempId = Date.now()
+        const optimisticMsg: Message = {
+          id: tempId,
+          sender_id: currentUser.id,
+          receiver_id: null,
+          content: '',
+          message_type: uploadRes.message_type,
+          file_url: uploadRes.file_url,
+          file_name: uploadRes.file_name,
+          file_size: uploadRes.file_size,
+          file_mime: uploadRes.file_mime,
+          status: 'sent',
+          is_read: true,
+          created_at: new Date().toISOString(),
+          isMine: true,
+          sender_name: currentUser.display_name,
+          sender_avatar: currentUser.avatar_url,
+          sender_role: currentUser.role,
+          sender_is_leader: Boolean(currentUser.is_leader),
+          sender_sector: currentUser.sector_name,
+        }
+
+        setBroadcastMessages((prev) => [...prev, optimisticMsg])
+
+        const sent = await socketService.sendBroadcast({
+          content: '',
+          message_type: uploadRes.message_type,
+          file_url: uploadRes.file_url,
+          file_name: uploadRes.file_name,
+          file_size: uploadRes.file_size,
+          file_mime: uploadRes.file_mime,
+        })
+
+        setBroadcastMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId ? { ...sent, isMine: true, sender_name: currentUser.display_name } : m
+          )
+        )
+      } catch (err: any) {
+        console.error('Failed to send broadcast file:', err)
+        alert(`Error al publicar archivo en difusión: ${err.message}`)
+      }
+      return
+    }
+
+    if (!activeUser) return
     try {
       const uploadRes = await apiService.uploadFile(file)
       const tempId = Date.now()
@@ -726,6 +922,9 @@ export const App: React.FC = () => {
     setConnectionStatus('disconnected')
     setCurrentUser(null)
     setActiveUser(null)
+    setIsBroadcastActive(false)
+    setBroadcastMessages([])
+    setBroadcastUnreadCount(0)
     setUsers([])
     setMessages([])
     notificationService.updateUnreadTitle(0)
@@ -783,7 +982,7 @@ export const App: React.FC = () => {
     <div className="fixed inset-0 flex h-full w-full max-w-full flex-col bg-slate-950 overflow-hidden">
       {/* PWA Install Banner (Solo Móviles) - Oculto en PC y pantallas de escritorio */}
       {showInstallBanner && isMobileDevice && (
-        <div className={`z-40 shrink-0 md:hidden ${activeUser ? 'hidden' : 'block'}`}>
+        <div className={`z-40 shrink-0 md:hidden ${activeUser || isBroadcastActive ? 'hidden' : 'block'}`}>
           <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-blue-700 to-indigo-700 px-3 sm:px-4 py-2 text-xs text-white shadow-md select-none">
             <div className="flex items-center gap-2 truncate">
               <Smartphone className="h-4 w-4 shrink-0 text-blue-200" />
@@ -811,8 +1010,8 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Top Bar - hidden on mobile when viewing active chat */}
-      <div className={activeUser ? 'hidden md:block' : 'block'}>
+      {/* Top Bar - hidden on mobile when viewing active chat or broadcast */}
+      <div className={activeUser || isBroadcastActive ? 'hidden md:block' : 'block'}>
         <TopBar
           currentUser={currentUser}
           currentPresence={myPresence}
@@ -825,29 +1024,38 @@ export const App: React.FC = () => {
       {/* Main Container */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sectors and Users Sidebar */}
-        <div className={`h-full ${activeUser ? 'hidden md:flex' : 'flex w-full md:w-80'} shrink-0 flex-col`}>
+        <div className={`h-full ${activeUser || isBroadcastActive ? 'hidden md:flex' : 'flex w-full md:w-80'} shrink-0 flex-col`}>
           <Sidebar
             users={users}
             sectors={sectors}
             activeUser={activeUser}
             onSelectUser={handleSelectUser}
             currentUserId={currentUser.id}
+            isBroadcastActive={isBroadcastActive}
+            onSelectBroadcast={handleSelectBroadcast}
+            broadcastUnreadCount={broadcastUnreadCount}
           />
         </div>
 
         {/* Chat Area */}
-        <div className={`h-full flex-1 ${!activeUser ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`h-full flex-1 ${!activeUser && !isBroadcastActive ? 'hidden md:flex' : 'flex'}`}>
           <ChatArea
             activeUser={activeUser}
-            messages={messages}
+            messages={isBroadcastActive ? broadcastMessages : messages}
             onSendMessage={handleSendMessage}
             onSendFile={handleSendFile}
             onTyping={handleTyping}
-            typingUser={typingSender}
-            onBack={() => setActiveUser(null)}
-            hasMore={hasMoreMessages}
-            isLoadingMore={isLoadingMore}
+            typingUser={isBroadcastActive ? null : typingSender}
+            onBack={() => {
+              setActiveUser(null)
+              setIsBroadcastActive(false)
+            }}
+            hasMore={isBroadcastActive ? hasMoreBroadcast : hasMoreMessages}
+            isLoadingMore={isBroadcastActive ? isLoadingMoreBroadcast : isLoadingMore}
             onLoadMore={handleLoadMore}
+            isBroadcast={isBroadcastActive}
+            canPublishBroadcast={canPublishBroadcast}
+            currentUser={currentUser}
           />
         </div>
       </div>

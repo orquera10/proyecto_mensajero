@@ -117,6 +117,25 @@ export const apiService = {
     )
   },
 
+  async getBroadcastHistory(
+    options?: { limit?: number; before?: number }
+  ): Promise<{ messages: Message[]; hasMore?: boolean }> {
+    const params = new URLSearchParams()
+    if (options?.limit) params.set('limit', String(options.limit))
+    if (options?.before) params.set('before', String(options.before))
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    const res = await this.request<{ messages: Message[]; hasMore?: boolean }>(
+      `/api/messages/broadcast${qs}`
+    )
+    if (res.messages) {
+      res.messages = res.messages.map((m) => ({
+        ...m,
+        sender_name: sanitizeName(m.sender_name),
+      }))
+    }
+    return res
+  },
+
   async uploadFile(file: File): Promise<{
     file_url: string
     file_name: string

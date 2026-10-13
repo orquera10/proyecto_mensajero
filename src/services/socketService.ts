@@ -17,6 +17,7 @@ export type SocketEventHandlers = {
   onTypingStatus: (senderId: number, senderName: string, isTyping: boolean) => void
   onUserAvatarUpdate?: (data: { userId: number; avatar_url: string }) => void
   onUserProfileUpdate?: (data: { userId: number; display_name: string }) => void
+  onBroadcastReceived?: (message: Message) => void
   onDisconnect: () => void
   onError: (err: any) => void
 }
@@ -97,6 +98,10 @@ class SocketService {
       this.handlers.onUserProfileUpdate?.(data)
     })
 
+    this.socket.on('broadcast:receive', (message: Message) => {
+      this.handlers.onBroadcastReceived?.(message)
+    })
+
     this.socket.on('disconnect', () => {
       this.handlers.onDisconnect?.()
     })
@@ -124,6 +129,33 @@ class SocketService {
       }
 
       this.socket.emit('message:send', data, (response: any) => {
+        if (response?.error) {
+          reject(new Error(response.error))
+        } else if (response?.message) {
+          resolve(response.message)
+        } else {
+          resolve(data as unknown as Message)
+        }
+      })
+    })
+  }
+
+  public sendBroadcast(
+    data: {
+      content?: string
+      message_type?: 'text' | 'image' | 'file'
+      file_url?: string
+      file_name?: string
+      file_size?: number
+      file_mime?: string
+    }
+  ): Promise<Message> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        return reject(new Error('No hay conexión con el servidor'))
+      }
+
+      this.socket.emit('broadcast:send', data, (response: any) => {
         if (response?.error) {
           reject(new Error(response.error))
         } else if (response?.message) {

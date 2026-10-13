@@ -37,8 +37,8 @@ export type MessageStatus = 'sent' | 'delivered' | 'read'
 export interface Message {
   id: number
   sender_id: number
-  receiver_id: number
-  sector_id?: number
+  receiver_id: number | null
+  sector_id?: number | null
   content: string
   message_type: 'text' | 'image' | 'file'
   file_url?: string
@@ -50,6 +50,11 @@ export interface Message {
   created_at: string
   isMine?: boolean
   sender_name?: string
+  sender_avatar?: string | null
+  sender_role?: 'admin' | 'user'
+  sender_is_leader?: boolean
+  sender_sector?: string
+  sender_sector_color?: string
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'

@@ -5,6 +5,7 @@ import {
   ChevronRight,
   FolderKanban,
   Star,
+  Megaphone,
 } from 'lucide-react'
 import type { User, Sector, PresenceStatus } from '../types'
 import { apiService, sanitizeName } from '../services/apiService'
@@ -15,6 +16,9 @@ interface SidebarProps {
   activeUser: User | null
   onSelectUser: (user: User) => void
   currentUserId: number
+  isBroadcastActive?: boolean
+  onSelectBroadcast?: () => void
+  broadcastUnreadCount?: number
 }
 
 interface SectorNode {
@@ -268,6 +272,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   activeUser,
   onSelectUser,
   currentUserId,
+  isBroadcastActive = false,
+  onSelectBroadcast,
+  broadcastUnreadCount = 0,
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedSectors, setCollapsedSectors] = useState<Record<string, boolean>>({})
@@ -399,6 +406,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
           />
         </div>
       </div>
+
+      {/* Pinned Broadcast Channel (Canal de Difusión e Información) */}
+      {!searchQuery && (
+        <div className="p-2 border-b border-slate-800/80 shrink-0">
+          <button
+            type="button"
+            onClick={onSelectBroadcast}
+            className={`flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition cursor-pointer active:scale-[0.99] ${
+              isBroadcastActive
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400/40'
+                : 'hover:bg-slate-800/80 text-slate-200 bg-slate-950/40 border border-slate-800/70'
+            }`}
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-md ${
+              isBroadcastActive
+                ? 'bg-white/20'
+                : 'bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-indigo-500/20'
+            }`}>
+              <Megaphone className="h-5 w-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-bold text-xs truncate">Avisos y Difusión</span>
+                {broadcastUnreadCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-sm animate-pulse">
+                    {broadcastUnreadCount}
+                  </span>
+                )}
+              </div>
+              <p className={`text-[11px] truncate leading-tight ${isBroadcastActive ? 'text-blue-100' : 'text-slate-400'}`}>
+                Comunicados de TI y Encargados
+              </p>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Sectors and User List (Tree) */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">

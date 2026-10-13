@@ -9,6 +9,7 @@ export function generateToken(user) {
       display_name: user.display_name,
       role: user.role,
       sector_id: user.sector_id,
+      is_leader: Boolean(user.is_leader),
     },
     config.jwtSecret,
     { expiresIn: '30d' }
