@@ -127,7 +127,7 @@ authRouter.post('/windows-sso', async (req, res) => {
       user = createdRows[0]
       console.log(`✨ Usuario de Windows / Active Directory auto-aprovisionado: @${cleanUsername} (${friendlyName}) en sector ID ${assignedSectorId}`)
     } else if (display_name && display_name.trim()) {
-      // If user exists but display_name is empty or just username, update to AD display name
+      // Formatear nombre preservando tildes y caracteres UTF-8
       const formatted = display_name
         .trim()
         .split(' ')
@@ -135,7 +135,11 @@ authRouter.post('/windows-sso', async (req, res) => {
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
         .join(' ')
 
-      if (!user.display_name || user.display_name.toLowerCase() === cleanUsername) {
+      const hasCorruptedChars = /[\uFFFD]/.test(user.display_name || '')
+      const isPlaceholder = !user.display_name || user.display_name.toLowerCase() === cleanUsername
+
+      // Si el nombre guardado tiene caracteres corruptos (\uFFFD, ), es placeholder, o difiere del nombre corporativo de AD:
+      if (formatted && (isPlaceholder || hasCorruptedChars || user.display_name !== formatted)) {
         await query(`UPDATE users SET display_name = ? WHERE id = ?`, [formatted, user.id])
         user.display_name = formatted
       }
@@ -190,6 +194,56 @@ authRouter.get('/me', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error en /me:', err)
     res.status(500).json({ error: 'Error interno en el servidor' })
+  }
+})
+
+// POST /api/auth/profile (Permite a cualquier usuario actualizar su nombre visible / display_name)
+authRouter.post('/profile', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id
+    const { display_name } = req.body
+
+    if (!display_name || !display_name.trim()) {
+      return res.status(400).json({ error: 'El nombre visible no puede estar vacío' })
+    }
+
+    const cleanName = display_name.trim()
+
+    await query('UPDATE users SET display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [
+      cleanName,
+      userId,
+    ])
+
+    const { rows } = await query(
+      `SELECT u.id, u.username, u.display_name, u.role, u.sector_id, u.is_leader, u.avatar_url,
+              s.name as sector_name, s.color as sector_color
+       FROM users u
+       LEFT JOIN sectors s ON u.sector_id = s.id
+       WHERE u.id = ?
+       LIMIT 1`,
+      [userId]
+    )
+
+    const updatedUser = {
+      ...rows[0],
+      is_leader: Boolean(rows[0].is_leader),
+    }
+
+    const io = req.app.get('io')
+    if (io) {
+      io.emit('user:profile_updated', {
+        userId,
+        display_name: cleanName,
+      })
+    }
+
+    res.json({
+      message: 'Perfil actualizado exitosamente',
+      user: updatedUser,
+    })
+  } catch (err) {
+    console.error('Error al actualizar perfil:', err)
+    res.status(500).json({ error: 'Error al actualizar el perfil' })
   }
 })
 

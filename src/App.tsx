@@ -358,6 +358,20 @@ export const App: React.FC = () => {
         }
       },
 
+      onUserProfileUpdate: ({ userId, display_name }) => {
+        setUsers((prev) =>
+          prev.map((u) => (Number(u.id) === Number(userId) ? { ...u, display_name } : u))
+        )
+        if (activeUserRef.current && Number(activeUserRef.current.id) === Number(userId)) {
+          setActiveUser((prev) => (prev ? { ...prev, display_name } : null))
+        }
+        if (currentUserRef.current && Number(currentUserRef.current.id) === Number(userId)) {
+          const updated = { ...currentUserRef.current, display_name }
+          setCurrentUser(updated)
+          storageService.saveUser(updated)
+        }
+      },
+
       onDisconnect: () => {
         console.warn('Socket desconectado')
       },

@@ -160,12 +160,13 @@ ipcMain.handle('system:get-windows-user', async () => {
   if (process.platform === 'win32' && username) {
     try {
       displayName = await new Promise((resolve) => {
-        const ps = `powershell -NoProfile -NonInteractive -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.DirectoryServices.AccountManagement; try { [System.DirectoryServices.AccountManagement.UserPrincipal]::Current.DisplayName } catch { '' }"`
-        exec(ps, { timeout: 2500 }, (err, stdout) => {
+        // Asegurar codificación UTF-8 tanto en la consola de Windows (chcp 65001) como en PowerShell
+        const ps = `chcp 65001 >nul && powershell -NoProfile -NonInteractive -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; [Console]::InputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.DirectoryServices.AccountManagement; try { [System.DirectoryServices.AccountManagement.UserPrincipal]::Current.DisplayName } catch { '' }"`
+        exec(ps, { timeout: 4000, encoding: 'utf8' }, (err, stdout) => {
           if (err || !stdout) {
             resolve('')
           } else {
-            resolve(stdout.trim())
+            resolve(stdout.replace(/\0/g, '').trim())
           }
         })
       })

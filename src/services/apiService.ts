@@ -109,6 +109,13 @@ export const apiService = {
     })
   },
 
+  async updateProfile(displayName: string): Promise<{ message: string; user: User }> {
+    return this.request<{ message: string; user: User }>('/api/auth/profile', {
+      method: 'POST',
+      body: JSON.stringify({ display_name: displayName }),
+    })
+  },
+
   async changePassword(new_password: string): Promise<{ message: string }> {
     return this.request<{ message: string }>('/api/auth/change-password', {
       method: 'POST',

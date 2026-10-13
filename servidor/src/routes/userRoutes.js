@@ -154,6 +154,17 @@ userRouter.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
       [display_name.trim(), sector_id || null, role || 'user', isLeaderVal, id]
     )
 
+    const io = req.app.get('io')
+    if (io) {
+      io.emit('user:profile_updated', {
+        userId: parseInt(id, 10),
+        display_name: display_name.trim(),
+        sector_id: sector_id || null,
+        role: role || 'user',
+        is_leader: isLeaderVal,
+      })
+    }
+
     res.json({ message: 'Usuario actualizado exitosamente' })
   } catch (err) {
     console.error('Error updating user:', err)

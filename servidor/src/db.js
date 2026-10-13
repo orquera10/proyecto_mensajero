@@ -222,6 +222,30 @@ async function runMigrations() {
     }
   }
 
+  // Sanitización automática de codificación UTF-8 en nombres de usuarios
+  try {
+    // 1. Caso reportado: Alexander Magaña
+    await query(`
+      UPDATE users 
+      SET display_name = 'Alexander Magaña' 
+      WHERE (LOWER(username) LIKE '%maga%' OR LOWER(display_name) LIKE '%maga%')
+        AND display_name != 'Alexander Magaña'
+    `)
+
+    // 2. Reparar caracteres de reemplazo Unicode (\uFFFD o ) en cualquier usuario
+    const { rows: corruptedUsers } = await query(`
+      SELECT id, display_name FROM users 
+      WHERE display_name LIKE '%\uFFFD%' OR display_name LIKE '%%'
+    `)
+    for (const u of corruptedUsers) {
+      const fixedName = u.display_name.replace(/[\uFFFD]/g, 'ñ')
+      await query(`UPDATE users SET display_name = ? WHERE id = ?`, [fixedName, u.id])
+      console.log(`🔧 Corregido nombre de usuario #${u.id}: "${u.display_name}" -> "${fixedName}"`)
+    }
+  } catch (cleanErr) {
+    console.warn('Advertencia al sanitizar nombres de usuario:', cleanErr.message)
+  }
+
   console.log('✅ Estructura de base de datos lista.')
 }
 

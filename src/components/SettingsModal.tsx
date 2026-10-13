@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   X,
   Bell,
@@ -93,6 +93,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [avatarError, setAvatarError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Display Name State
+  const [displayNameInput, setDisplayNameInput] = useState(currentUser?.display_name || '')
+  const [isSavingName, setIsSavingName] = useState(false)
+  const [nameSuccess, setNameSuccess] = useState('')
+  const [nameError, setNameError] = useState('')
+
+  useEffect(() => {
+    if (currentUser?.display_name) {
+      setDisplayNameInput(currentUser.display_name)
+    }
+  }, [currentUser?.display_name])
+
   // Web Password State
   const [newPassword, setNewPassword] = useState('')
   const [isSavingPassword, setIsSavingPassword] = useState(false)
@@ -102,6 +114,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const serverUrl = apiService.getServerUrl()
 
   if (!isOpen) return null
+
+  const handleUpdateDisplayName = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!displayNameInput || !displayNameInput.trim()) {
+      setNameError('El nombre no puede estar vacío')
+      return
+    }
+
+    try {
+      setIsSavingName(true)
+      setNameError('')
+      setNameSuccess('')
+      const res = await apiService.updateProfile(displayNameInput.trim())
+      setNameSuccess('Nombre actualizado correctamente')
+      if (onUserUpdated && res.user) {
+        onUserUpdated(res.user)
+      }
+      setTimeout(() => setNameSuccess(''), 4000)
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Error al actualizar el nombre'
+      setNameError(errorMsg)
+    } finally {
+      setIsSavingName(false)
+    }
+  }
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault()
@@ -215,6 +252,61 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Servidor corporativo: <span className="text-slate-300 font-mono text-[10px]">mensajero.secnaf.jujuy.gob.ar</span>
               </p>
             </div>
+          </div>
+
+          {/* Display Name Section */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-3.5 sm:p-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2 text-xs font-semibold text-white">
+                <UserIcon className="h-4 w-4 text-blue-400" />
+                <span>Nombre Visible</span>
+              </span>
+              {currentUser?.username && (
+                <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full font-mono">
+                  @{currentUser.username}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Tu nombre completo y apellido con los que te identificarán tus compañeros en la red.
+            </p>
+            <form onSubmit={handleUpdateDisplayName} className="space-y-2 pt-1">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  placeholder="Tu nombre y apellido..."
+                  value={displayNameInput}
+                  onChange={(e) => setDisplayNameInput(e.target.value)}
+                  className="min-w-0 flex-1 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isSavingName || !displayNameInput.trim() || displayNameInput.trim() === currentUser?.display_name}
+                  className="w-full sm:w-auto rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-40 transition shadow-md shadow-blue-600/20 cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
+                >
+                  {isSavingName ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <span>Guardar</span>
+                  )}
+                </button>
+              </div>
+              {nameSuccess && (
+                <p className="text-[11px] text-emerald-400 flex items-center gap-1.5 pt-0.5">
+                  <Check className="h-3.5 w-3.5 shrink-0" />
+                  <span>{nameSuccess}</span>
+                </p>
+              )}
+              {nameError && (
+                <p className="text-[11px] text-rose-400 flex items-center gap-1.5 pt-0.5">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{nameError}</span>
+                </p>
+              )}
+            </form>
           </div>
 
           {/* Profile Photo & Avatar Section */}
