@@ -398,6 +398,23 @@ export const App: React.FC = () => {
 
         setBroadcastMessages((prev) => {
           if (prev.some((m) => m.id === message.id)) return prev
+
+          // Si es un mensaje propio que llega por socket mientras tenemos un optimista pendiente
+          if (isMine) {
+            const pendingIndex = prev.findIndex(
+              (m) =>
+                m.isMine &&
+                typeof m.id === 'number' &&
+                m.id > 1000000000000 &&
+                (m.content === message.content || (m.file_url && m.file_url === message.file_url))
+            )
+            if (pendingIndex !== -1) {
+              const updated = [...prev]
+              updated[pendingIndex] = { ...message, isMine: true }
+              return updated
+            }
+          }
+
           return [...prev, { ...message, isMine }]
         })
 
@@ -744,11 +761,15 @@ export const App: React.FC = () => {
           content,
           message_type: 'text',
         })
-        setBroadcastMessages((prev) =>
-          prev.map((m) =>
+        setBroadcastMessages((prev) => {
+          const alreadyExists = prev.some((m) => m.id === sent.id)
+          if (alreadyExists) {
+            return prev.filter((m) => m.id !== tempId)
+          }
+          return prev.map((m) =>
             m.id === tempId ? { ...sent, isMine: true, sender_name: currentUser.display_name } : m
           )
-        )
+        })
       } catch (err: any) {
         console.error('Failed to send broadcast message:', err)
         alert(`Error al publicar comunicado: ${err.message}`)
@@ -845,11 +866,15 @@ export const App: React.FC = () => {
           file_mime: uploadRes.file_mime,
         })
 
-        setBroadcastMessages((prev) =>
-          prev.map((m) =>
+        setBroadcastMessages((prev) => {
+          const alreadyExists = prev.some((m) => m.id === sent.id)
+          if (alreadyExists) {
+            return prev.filter((m) => m.id !== tempId)
+          }
+          return prev.map((m) =>
             m.id === tempId ? { ...sent, isMine: true, sender_name: currentUser.display_name } : m
           )
-        )
+        })
       } catch (err: any) {
         console.error('Failed to send broadcast file:', err)
         alert(`Error al publicar archivo en difusión: ${err.message}`)

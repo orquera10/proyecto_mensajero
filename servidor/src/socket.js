@@ -252,8 +252,8 @@ export function initSocketIO(io) {
           sender_sector_color: sender.sector_color || '#3b82f6',
         }
 
-        // Emit to ALL connected users
-        io.emit('broadcast:receive', messagePayload)
+        // Emit to ALL other connected users (avoid echoing to sender who receives it via callback)
+        socket.broadcast.emit('broadcast:receive', messagePayload)
 
         callback?.({ success: true, message: messagePayload })
       } catch (err) {
