@@ -55,14 +55,6 @@ function createTray() {
         bringToFront()
       },
     },
-    { type: 'separator' },
-    {
-      label: 'Salir completamente',
-      click: () => {
-        isQuitting = true
-        app.quit()
-      },
-    },
   ])
 
   tray.setToolTip('Mensajero Institucional')
@@ -168,7 +160,7 @@ ipcMain.handle('system:get-windows-user', async () => {
   if (process.platform === 'win32' && username) {
     try {
       displayName = await new Promise((resolve) => {
-        const ps = `powershell -NoProfile -NonInteractive -Command "Add-Type -AssemblyName System.DirectoryServices.AccountManagement; try { [System.DirectoryServices.AccountManagement.UserPrincipal]::Current.DisplayName } catch { '' }"`
+        const ps = `powershell -NoProfile -NonInteractive -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.DirectoryServices.AccountManagement; try { [System.DirectoryServices.AccountManagement.UserPrincipal]::Current.DisplayName } catch { '' }"`
         exec(ps, { timeout: 2500 }, (err, stdout) => {
           if (err || !stdout) {
             resolve('')

@@ -54,30 +54,12 @@ function createTray() {
 
     const contextMenu = Menu.buildFromTemplate([
       {
-        label: 'Abrir Mensajero',
+        label: 'Abrir Mensajero Institucional',
         click: () => {
           if (win) {
             win.show()
             win.focus()
           }
-        },
-      },
-      { type: 'separator' },
-      {
-        label: 'Cerrar Sesión',
-        click: () => {
-          if (win) {
-            win.webContents.send('app:logout')
-            win.show()
-          }
-        },
-      },
-      { type: 'separator' },
-      {
-        label: 'Salir',
-        click: () => {
-          isQuitting = true
-          app.quit()
         },
       },
     ])

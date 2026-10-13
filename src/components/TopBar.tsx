@@ -128,14 +128,16 @@ export const TopBar: React.FC<TopBarProps> = ({
           <Settings className="h-4 w-4" />
         </button>
 
-        {/* Logout button */}
-        <button
-          onClick={onLogout}
-          title="Cerrar Sesión"
-          className="rounded-lg p-2 text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition cursor-pointer"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
+        {/* Logout button (Solo visible en versión web; oculto en cliente de Windows para no permitir salir del usuario) */}
+        {!window.electronIPC && (
+          <button
+            onClick={onLogout}
+            title="Cerrar Sesión"
+            className="rounded-lg p-2 text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition cursor-pointer"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </header>
   )
