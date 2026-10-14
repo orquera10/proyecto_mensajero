@@ -15,13 +15,24 @@ let win = null
 let tray = null
 let isQuitting = false
 
+// Detectar si la aplicación debe iniciar en segundo plano (oculta en la bandeja)
+const isHiddenStart = process.argv.some((arg) =>
+  /--hidden|--background|--minimized|--startup|--autostart/i.test(arg)
+)
+
 // Bloqueo de instancia única: Si el usuario vuelve a abrir la app, enfoca la ventana existente
 const gotTheLock = app.requestSingleInstanceLock()
 if (!gotTheLock) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
-    bringToFront()
+  app.on('second-instance', (_event, commandLine) => {
+    // Si la segunda llamada no es en segundo plano (por ejemplo, el usuario hizo clic en el icono del escritorio), mostrar la ventana
+    const isSecondHidden = commandLine.some((arg) =>
+      /--hidden|--background|--minimized|--startup|--autostart/i.test(arg)
+    )
+    if (!isSecondHidden) {
+      bringToFront()
+    }
   })
 }
 
@@ -81,7 +92,7 @@ function createWindow() {
     height: 750,
     minWidth: 850,
     minHeight: 600,
-    show: true,
+    show: false,
     center: true,
     backgroundColor: '#020617',
     autoHideMenuBar: true,
@@ -110,8 +121,10 @@ function createWindow() {
   win.loadFile(indexPath)
 
   win.on('ready-to-show', () => {
-    win?.show()
-    win?.focus()
+    if (!isHiddenStart) {
+      win?.show()
+      win?.focus()
+    }
   })
 }
 
@@ -197,6 +210,17 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
+  // Configurar inicio automático con Windows con el argumento --hidden
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: true,
+      args: ['--hidden'],
+    })
+  } catch (err) {
+    console.error('Error al configurar inicio automático:', err)
+  }
+
   Menu.setApplicationMenu(null)
   createTray()
   createWindow()
