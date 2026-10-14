@@ -448,7 +448,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </div>
               <p className={`text-[11px] truncate leading-tight ${isBroadcastActive ? 'text-blue-100' : 'text-slate-400'}`}>
-                Comunicados de TI y Encargados
+                Comunicados Institucionales
               </p>
             </div>
           </button>

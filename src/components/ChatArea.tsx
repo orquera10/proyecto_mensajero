@@ -657,7 +657,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           <div className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-2xl border border-slate-800 bg-slate-950/70 text-xs text-slate-400">
             <Lock className="h-4 w-4 text-amber-400/90 shrink-0" />
             <span className="text-center text-[11px] sm:text-xs">
-              Canal informativo: Solo el personal de <strong className="text-slate-200">Informática</strong> y los <strong className="text-slate-200">Encargados de Área</strong> pueden publicar comunicados.
+              Canal informativo institucional
             </span>
           </div>
         ) : (
