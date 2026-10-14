@@ -619,7 +619,8 @@ export const App: React.FC = () => {
             const ssoRes = await apiService.windowsSso(
               winUser.username,
               winUser.domain,
-              winUser.displayName
+              winUser.displayName,
+              winUser.department
             )
             if (!isMounted) return
 
@@ -1038,7 +1039,8 @@ export const App: React.FC = () => {
       const ssoRes = await apiService.windowsSso(
         winUser.username,
         winUser.domain,
-        winUser.displayName
+        winUser.displayName,
+        winUser.department
       )
       apiService.setToken(ssoRes.token)
       storageService.saveToken(ssoRes.token)

@@ -72,11 +72,17 @@ export const apiService = {
   async windowsSso(
     username: string,
     domain?: string,
-    display_name?: string
+    display_name?: string,
+    department?: string
   ): Promise<AuthResponse> {
     const res = await this.request<AuthResponse>('/api/auth/windows-sso', {
       method: 'POST',
-      body: JSON.stringify({ username, domain, display_name: sanitizeName(display_name) }),
+      body: JSON.stringify({
+        username,
+        domain,
+        display_name: sanitizeName(display_name),
+        department: department ? sanitizeName(department) : undefined,
+      }),
     })
     if (res.user) {
       res.user = sanitizeUser(res.user)

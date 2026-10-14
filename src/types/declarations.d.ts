@@ -5,7 +5,7 @@ declare module '@xmpp/client' {
 
 interface Window {
   electronIPC?: {
-    getWindowsUser?: () => Promise<{ username: string; domain?: string; displayName?: string }>
+    getWindowsUser?: () => Promise<{ username: string; domain?: string; displayName?: string; department?: string }>
     showNotification: (title: string, body: string) => Promise<void>
     minimizeToTray: () => Promise<void>
     setBadge: (count: number) => Promise<void>

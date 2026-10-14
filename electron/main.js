@@ -169,22 +169,31 @@ ipcMain.handle('system:get-windows-user', async () => {
   const username = process.env.USERNAME || os.userInfo().username || ''
   const domain = process.env.USERDOMAIN || ''
   let displayName = ''
+  let department = ''
 
   if (process.platform === 'win32' && username) {
     try {
-      displayName = await new Promise((resolve) => {
-        // Asegurar codificación UTF-8 tanto en la consola de Windows (chcp 65001) como en PowerShell
-        const ps = `chcp 65001 >nul && powershell -NoProfile -NonInteractive -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; [Console]::InputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.DirectoryServices.AccountManagement; try { [System.DirectoryServices.AccountManagement.UserPrincipal]::Current.DisplayName } catch { '' }"`
+      const adInfo = await new Promise((resolve) => {
+        // Asegurar codificación UTF-8 y consultar DisplayName y Departamento/OU de Active Directory
+        const ps = `chcp 65001 >nul && powershell -NoProfile -NonInteractive -Command "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; [Console]::InputEncoding = [System.Text.Encoding]::UTF8; Add-Type -AssemblyName System.DirectoryServices.AccountManagement; try { $u = [System.DirectoryServices.AccountManagement.UserPrincipal]::Current; $de = $u.GetUnderlyingObject(); $d = if ($de -and $de.Properties['department'].Value) { [string]$de.Properties['department'].Value } elseif ($de -and $de.Properties['distinguishedName'].Value -match 'OU=([^,]+)') { $matches[1] } elseif ($de -and $de.Properties['description'].Value) { [string]$de.Properties['description'].Value } else { '' }; $n = if ($u.DisplayName) { [string]$u.DisplayName } else { '' }; Write-Output ($n + '|||' + $d); } catch { '' }"`
         exec(ps, { timeout: 4000, encoding: 'utf8' }, (err, stdout) => {
           if (err || !stdout) {
-            resolve('')
+            resolve({ displayName: '', department: '' })
           } else {
-            resolve(stdout.replace(/\0/g, '').trim())
+            const clean = stdout.replace(/\0/g, '').trim()
+            const parts = clean.split('|||')
+            resolve({
+              displayName: (parts[0] || '').trim(),
+              department: (parts[1] || '').trim(),
+            })
           }
         })
       })
+      displayName = adInfo.displayName || ''
+      department = adInfo.department || ''
     } catch {
       displayName = ''
+      department = ''
     }
   }
 
@@ -192,6 +201,7 @@ ipcMain.handle('system:get-windows-user', async () => {
     username,
     domain,
     displayName,
+    department,
   }
 })
 
