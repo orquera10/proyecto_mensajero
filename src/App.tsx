@@ -174,6 +174,18 @@ export const App: React.FC = () => {
           // Ignored
         }
       }
+
+      // Sync broadcast unread count if not currently looking at broadcast
+      if (!isBroadcastActiveRef.current) {
+        apiService.getBroadcastUnreadCount().then((bRes) => {
+          if (bRes && typeof bRes.unreadCount === 'number') {
+            setBroadcastUnreadCount(bRes.unreadCount)
+            broadcastUnreadCountRef.current = bRes.unreadCount
+            const directUnread = usersRef.current.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+            notificationService.updateUnreadTitle(directUnread + bRes.unreadCount)
+          }
+        }).catch(console.warn)
+      }
     }
 
     window.addEventListener('focus', handleFocusOrVisible)
@@ -185,37 +197,49 @@ export const App: React.FC = () => {
     }
   }, [])
 
-  // Auto-sync active conversation in real time to guarantee messages never get missed
+  // Auto-sync active conversation & broadcast unread in real time
   useEffect(() => {
     const syncInterval = setInterval(async () => {
-      if (document.visibilityState === 'visible' && activeUserRef.current) {
-        const activeId = activeUserRef.current.id
-        try {
-          const res = await apiService.getChatHistory(activeId, { limit: 20 })
-          if (res.messages && res.messages.length > 0) {
-            setMessages((prev) => {
-              if (prev.length === 0) {
-                return res.messages.map((m) => ({
-                  ...m,
-                  isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
-                }))
-              }
-              const lastId = prev[prev.length - 1].id
-              const existingIds = new Set(prev.map((m) => m.id))
-              const newMsgs = res.messages
-                .filter((m) => m.id > lastId && !existingIds.has(m.id))
-                .map((m) => ({
-                  ...m,
-                  isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
-                }))
-              return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev
-            })
+      if (document.visibilityState === 'visible') {
+        if (activeUserRef.current) {
+          const activeId = activeUserRef.current.id
+          try {
+            const res = await apiService.getChatHistory(activeId, { limit: 20 })
+            if (res.messages && res.messages.length > 0) {
+              setMessages((prev) => {
+                if (prev.length === 0) {
+                  return res.messages.map((m) => ({
+                    ...m,
+                    isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+                  }))
+                }
+                const lastId = prev[prev.length - 1].id
+                const existingIds = new Set(prev.map((m) => m.id))
+                const newMsgs = res.messages
+                  .filter((m) => m.id > lastId && !existingIds.has(m.id))
+                  .map((m) => ({
+                    ...m,
+                    isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
+                  }))
+                return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev
+              })
+            }
+          } catch {
+            // Ignored
           }
-        } catch {
-          // Ignored
+        }
+
+        // Periodic check for broadcast unread announcements
+        if (!isBroadcastActiveRef.current) {
+          apiService.getBroadcastUnreadCount().then((bRes) => {
+            if (bRes && typeof bRes.unreadCount === 'number') {
+              setBroadcastUnreadCount(bRes.unreadCount)
+              broadcastUnreadCountRef.current = bRes.unreadCount
+            }
+          }).catch(() => {})
         }
       }
-    }, 3000)
+    }, 4000)
 
     return () => clearInterval(syncInterval)
   }, [])
@@ -234,6 +258,16 @@ export const App: React.FC = () => {
                 isMine: Number(m.sender_id) === Number(currentUserRef.current?.id),
               }))
             )
+          }).catch(console.warn)
+        }
+
+        // Refresh broadcast unread count on reconnect
+        if (!isBroadcastActiveRef.current) {
+          apiService.getBroadcastUnreadCount().then((bRes) => {
+            if (bRes && typeof bRes.unreadCount === 'number') {
+              setBroadcastUnreadCount(bRes.unreadCount)
+              broadcastUnreadCountRef.current = bRes.unreadCount
+            }
           }).catch(console.warn)
         }
       },
@@ -456,12 +490,23 @@ export const App: React.FC = () => {
       const [sectorsRes, usersRes, broadcastUnreadRes] = await Promise.all([
         apiService.getSectors(),
         apiService.getUsers(),
-        apiService.getBroadcastUnreadCount().catch(() => ({ unreadCount: 0 })),
+        apiService.getBroadcastUnreadCount().catch((err) => {
+          console.error('Error fetching broadcast unread count on login:', err)
+          return { unreadCount: 0, lastReadId: 0 }
+        }),
       ])
       setSectors(sectorsRes.sectors)
       const bUnread = isBroadcastActiveRef.current ? 0 : (broadcastUnreadRes?.unreadCount || 0)
       setBroadcastUnreadCount(bUnread)
       broadcastUnreadCountRef.current = bUnread
+
+      if (bUnread > 0 && !isBroadcastActiveRef.current) {
+        notificationService.notifyIncomingMessage(
+          '📢 Avisos y Difusión',
+          `Tienes ${bUnread} comunicado${bUnread > 1 ? 's' : ''} institucional${bUnread > 1 ? 'es' : ''} pendiente${bUnread > 1 ? 's' : ''}`,
+          true
+        )
+      }
 
       setUsers((prevUsers) => {
         return usersRes.users.map((u) => {

@@ -416,19 +416,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className={`flex w-full items-center gap-3 rounded-xl p-2.5 text-left transition cursor-pointer active:scale-[0.99] ${
               isBroadcastActive
                 ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30 ring-1 ring-blue-400/40'
+                : broadcastUnreadCount > 0
+                ? 'hover:bg-slate-800/80 text-slate-200 bg-slate-950/60 border border-rose-500/50 shadow-sm shadow-rose-500/10'
                 : 'hover:bg-slate-800/80 text-slate-200 bg-slate-950/40 border border-slate-800/70'
             }`}
           >
-            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-md ${
+            <div className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-md ${
               isBroadcastActive
                 ? 'bg-white/20'
                 : 'bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-indigo-500/20'
             }`}>
               <Megaphone className="h-5 w-5" />
+              {broadcastUnreadCount > 0 && !isBroadcastActive && (
+                <span className="absolute -top-1 -right-1 flex h-4.5 min-w-[18px] px-1 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white ring-2 ring-slate-900 shadow-sm animate-pulse">
+                  {broadcastUnreadCount > 9 ? '9+' : broadcastUnreadCount}
+                </span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-1">
-                <span className="font-bold text-xs truncate">Avisos y Difusión</span>
+                <span className={`font-bold text-xs truncate ${broadcastUnreadCount > 0 && !isBroadcastActive ? 'text-white' : ''}`}>
+                  Avisos y Difusión
+                </span>
                 {broadcastUnreadCount > 0 && !isBroadcastActive && (
                   <span
                     title={`${broadcastUnreadCount} comunicado${broadcastUnreadCount > 1 ? 's' : ''} nuevo${broadcastUnreadCount > 1 ? 's' : ''}`}

@@ -142,7 +142,8 @@ async function runMigrations() {
 
     await query(`
       CREATE TABLE IF NOT EXISTS broadcast_reads (
-        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
         last_read_id INTEGER NOT NULL DEFAULT 0,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
@@ -154,6 +155,7 @@ async function runMigrations() {
       await query(`ALTER TABLE sectors DROP CONSTRAINT IF EXISTS sectors_name_key;`)
       await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_leader BOOLEAN DEFAULT FALSE;`)
       await query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'sent';`)
+      await query(`ALTER TABLE broadcast_reads ADD COLUMN IF NOT EXISTS id SERIAL;`)
     } catch (e) {
       console.warn('PostgreSQL migration warning:', e.message)
     }

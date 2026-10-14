@@ -119,13 +119,20 @@ messageRouter.get('/broadcast', authenticateToken, async (req, res) => {
 // GET /api/messages/broadcast/unread-count - Cantidad de comunicados no leídos
 messageRouter.get('/broadcast/unread-count', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id
+    const userId = parseInt(req.user.id, 10)
 
-    const { rows: readRows } = await query(
-      `SELECT last_read_id FROM broadcast_reads WHERE user_id = ?`,
-      [userId]
-    )
-    const lastReadId = readRows[0]?.last_read_id || 0
+    let lastReadId = 0
+    try {
+      const { rows: readRows } = await query(
+        `SELECT last_read_id FROM broadcast_reads WHERE user_id = ?`,
+        [userId]
+      )
+      if (readRows && readRows.length > 0) {
+        lastReadId = parseInt(readRows[0].last_read_id || 0, 10)
+      }
+    } catch (readErr) {
+      console.warn('Aviso al consultar broadcast_reads (puede estar creándose la tabla):', readErr.message)
+    }
 
     const { rows: countRows } = await query(
       `SELECT COUNT(*) as count 
@@ -141,21 +148,21 @@ messageRouter.get('/broadcast/unread-count', authenticateToken, async (req, res)
     res.json({ unreadCount, lastReadId })
   } catch (err) {
     console.error('Error fetching broadcast unread count:', err)
-    res.status(500).json({ error: 'Error al obtener comunicados no leídos' })
+    res.status(500).json({ error: 'Error al obtener comunicados no leídos', details: err.message })
   }
 })
 
 // POST /api/messages/broadcast/read - Marcar comunicados de difusión como leídos
 messageRouter.post('/broadcast/read', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id
+    const userId = parseInt(req.user.id, 10)
     let lastReadId = req.body?.last_read_id ? parseInt(req.body.last_read_id, 10) : null
 
     if (!lastReadId) {
       const { rows: maxRows } = await query(
         `SELECT MAX(id) as max_id FROM messages WHERE receiver_id IS NULL AND sector_id IS NULL`
       )
-      lastReadId = maxRows[0]?.max_id || 0
+      lastReadId = maxRows[0]?.max_id ? parseInt(maxRows[0].max_id, 10) : 0
     }
 
     const { rows } = await query(
@@ -164,14 +171,14 @@ messageRouter.post('/broadcast/read', authenticateToken, async (req, res) => {
     )
 
     if (rows && rows.length > 0) {
-      const currentMax = Math.max(rows[0].last_read_id || 0, lastReadId)
+      const currentMax = Math.max(parseInt(rows[0].last_read_id || 0, 10), lastReadId)
       await query(
         `UPDATE broadcast_reads SET last_read_id = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`,
         [currentMax, userId]
       )
     } else {
       await query(
-        `INSERT INTO broadcast_reads (user_id, last_read_id) VALUES (?, ?)`,
+        `INSERT INTO broadcast_reads (user_id, last_read_id) VALUES (?, ?) RETURNING user_id`,
         [userId, lastReadId]
       )
     }
@@ -179,7 +186,7 @@ messageRouter.post('/broadcast/read', authenticateToken, async (req, res) => {
     res.json({ success: true, lastReadId })
   } catch (err) {
     console.error('Error marking broadcast as read:', err)
-    res.status(500).json({ error: 'Error al marcar comunicados como leídos' })
+    res.status(500).json({ error: 'Error al marcar comunicados como leídos', details: err.message })
   }
 })
 

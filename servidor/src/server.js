@@ -58,7 +58,17 @@ app.get('/health', (_req, res) => {
 
 // Serve Compiled Web Client (SPA) or redirect to Admin
 if (fs.existsSync(clientDistDir)) {
-  app.use(express.static(clientDistDir))
+  app.use(
+    express.static(clientDistDir, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+          res.setHeader('Pragma', 'no-cache')
+          res.setHeader('Expires', '0')
+        }
+      },
+    })
+  )
   app.use((req, res, next) => {
     if (
       req.path.startsWith('/api') ||
@@ -69,6 +79,9 @@ if (fs.existsSync(clientDistDir)) {
       return next()
     }
     if (req.method === 'GET') {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+      res.setHeader('Pragma', 'no-cache')
+      res.setHeader('Expires', '0')
       return res.sendFile(path.join(clientDistDir, 'index.html'))
     }
     next()
