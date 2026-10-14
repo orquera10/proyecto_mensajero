@@ -16,7 +16,7 @@ import {
   Megaphone,
 } from 'lucide-react'
 import type { User, Message, PresenceStatus } from '../types'
-import { apiService, sanitizeName } from '../services/apiService'
+import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
 
 interface ChatAreaProps {
   activeUser: User | null
@@ -152,7 +152,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (isNearBottom || lastMsg?.isMine) {
       container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
     }
-  }, [messages, activeUser?.id])
+  }, [messages, activeUser?.id, isBroadcast])
 
   // Scroll infinito hacia arriba al retroceder en el chat (como WhatsApp)
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -336,7 +336,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 <h2 className="text-sm font-bold text-white truncate">
                   Avisos y Difusión Institucional
                 </h2>
-                <span className="rounded-md bg-blue-500/20 border border-blue-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 uppercase tracking-wide">
+                <span className="rounded-md bg-blue-500/20 border border-blue-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 uppercase tracking-wide shrink-0">
                   General
                 </span>
               </div>
@@ -510,7 +510,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-xs shadow-sm ${
+                  className={`${
+                    isBroadcast ? 'w-full max-w-[95%] sm:max-w-[80%]' : 'max-w-[85%] sm:max-w-[70%]'
+                  } rounded-2xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-xs shadow-sm break-words ${
                     isMine
                       ? 'bg-blue-600 text-white rounded-br-none shadow-blue-600/10'
                       : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
@@ -518,7 +520,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 >
                   {/* Broadcast Sender Header (Autor, Sector, Rango) */}
                   {isBroadcast && (
-                    <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-white/10 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-2 pb-1.5 border-b border-white/10 text-xs min-w-0">
                       {msg.sender_avatar ? (
                         <img
                           src={
@@ -537,11 +539,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           {(sanitizeName(msg.sender_name) || '?').charAt(0).toUpperCase()}
                         </div>
                       )}
-                      <span className={`font-semibold text-[11px] truncate ${isMine ? 'text-amber-200' : 'text-amber-400'}`}>
+                      <span className={`font-semibold text-[11px] truncate max-w-[140px] sm:max-w-[220px] ${isMine ? 'text-amber-200' : 'text-amber-400'}`}>
                         {sanitizeName(msg.sender_name) || 'Comunicado Institucional'}
                       </span>
                       {msg.sender_sector && (
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-medium truncate ${
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-medium truncate max-w-[130px] sm:max-w-[180px] ${
                           isMine ? 'bg-blue-700/70 text-blue-100' : 'bg-slate-800 text-slate-300 border border-slate-700/60'
                         }`}>
                           {msg.sender_sector}
@@ -560,7 +562,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
                   {/* Text Content */}
                   {msg.content && (
-                    <p className="leading-relaxed whitespace-pre-wrap select-text">{msg.content}</p>
+                    <p className="leading-relaxed whitespace-pre-wrap select-text break-words">{msg.content}</p>
                   )}
 
                   {/* Image Attachment */}
@@ -603,10 +605,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     }`}
                   >
                     <span>
-                      {new Date(msg.created_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatMessageTime(msg.created_at)}
                     </span>
                     {isMine && !isBroadcast && (() => {
                       const isRead = msg.status === 'read' || msg.is_read === true || (msg.is_read as any) === 1

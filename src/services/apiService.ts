@@ -20,6 +20,22 @@ export function sanitizeUser(u: User): User {
   }
 }
 
+export function formatMessageTime(dateStr?: string | null): string {
+  if (!dateStr) return ''
+  try {
+    const raw = String(dateStr).trim()
+    // Normalizar formato SQLite / SQL sin "T": "YYYY-MM-DD HH:mm:ss" -> "YYYY-MM-DDTHH:mm:ss"
+    const normalized = !raw.includes('T') && raw.includes(' ')
+      ? raw.replace(' ', 'T')
+      : raw
+    const d = new Date(normalized)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
 export const apiService = {
   setToken(token: string) {
     currentToken = token

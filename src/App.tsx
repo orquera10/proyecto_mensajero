@@ -1135,7 +1135,7 @@ export const App: React.FC = () => {
         </div>
 
         {/* Chat Area */}
-        <div className={`h-full flex-1 ${!activeUser && !isBroadcastActive ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`h-full flex-1 w-full min-w-0 flex-col ${!activeUser && !isBroadcastActive ? 'hidden md:flex' : 'flex'}`}>
           <ChatArea
             activeUser={activeUser}
             messages={isBroadcastActive ? broadcastMessages : messages}

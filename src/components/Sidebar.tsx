@@ -8,7 +8,7 @@ import {
   Megaphone,
 } from 'lucide-react'
 import type { User, Sector, PresenceStatus } from '../types'
-import { apiService, sanitizeName } from '../services/apiService'
+import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
 
 interface SidebarProps {
   users: User[]
@@ -209,10 +209,7 @@ const SectorTreeItem: React.FC<{
                             : 'text-slate-500'
                         }`}
                       >
-                        {new Date(user.lastMessageTime).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {formatMessageTime(user.lastMessageTime)}
                       </span>
                     )}
                   </div>
