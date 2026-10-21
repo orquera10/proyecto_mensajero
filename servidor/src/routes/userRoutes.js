@@ -121,6 +121,11 @@ userRouter.post('/', authenticateToken, requireAdmin, async (req, res) => {
       [username.trim().toLowerCase(), passHash, display_name.trim(), sector_id || null, role || 'user', isLeaderVal]
     )
 
+    const io = req.app.get('io')
+    if (io) {
+      io.emit('users:updated')
+    }
+
     res.status(201).json({
       message: 'Usuario creado exitosamente',
       user: {
@@ -156,6 +161,7 @@ userRouter.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
 
     const io = req.app.get('io')
     if (io) {
+      io.emit('users:updated')
       io.emit('user:profile_updated', {
         userId: parseInt(id, 10),
         display_name: display_name.trim(),
@@ -204,6 +210,12 @@ userRouter.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     await query('DELETE FROM users WHERE id = ?', [id])
+
+    const io = req.app.get('io')
+    if (io) {
+      io.emit('users:updated')
+    }
+
     res.json({ message: 'Usuario eliminado exitosamente' })
   } catch (err) {
     console.error('Error deleting user:', err)

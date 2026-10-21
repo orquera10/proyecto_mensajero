@@ -86,7 +86,7 @@ async function resolveOrCreateSector(department, domain) {
       `SELECT id FROM sectors WHERE LOWER(name) LIKE '%sistemas%' LIMIT 1`
     )
     const { rows: firstSector } = await query(`SELECT id FROM sectors ORDER BY id ASC LIMIT 1`)
-    return sysSectors[0]?.id || firstSector[0]?.id || null
+    return { sectorId: sysSectors[0]?.id || firstSector[0]?.id || null, isNew: false }
   }
 
   // 1. Búsqueda exacta (case-insensitive)
@@ -95,7 +95,7 @@ async function resolveOrCreateSector(department, domain) {
     [cleanDept]
   )
   if (exactMatches.length > 0) {
-    return exactMatches[0].id
+    return { sectorId: exactMatches[0].id, isNew: false }
   }
 
   // 2. Búsqueda por contención inteligente (ej: AD dice "Sistemas" y en la BD existe "Sistemas y TI", o viceversa)
@@ -104,7 +104,7 @@ async function resolveOrCreateSector(department, domain) {
     [`%${cleanDept}%`, cleanDept]
   )
   if (partialMatches.length > 0) {
-    return partialMatches[0].id
+    return { sectorId: partialMatches[0].id, isNew: false }
   }
 
   // 3. Si no existe en la base de datos, crear el sector automáticamente
@@ -124,14 +124,14 @@ async function resolveOrCreateSector(department, domain) {
   const newSectorId = res.insertId
   if (newSectorId) {
     console.log(`✨ Sector auto-creado desde Active Directory: "${formattedName}" (ID ${newSectorId})`)
-    return newSectorId
+    return { sectorId: newSectorId, isNew: true }
   }
 
   const { rows: fallbackFetch } = await query(
     `SELECT id FROM sectors WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1`,
     [cleanDept]
   )
-  return fallbackFetch[0]?.id || null
+  return { sectorId: fallbackFetch[0]?.id || null, isNew: false }
 }
 
 // POST /api/auth/windows-sso (Active Directory / Windows Single Sign-On)
@@ -158,7 +158,11 @@ authRouter.post('/windows-sso', async (req, res) => {
     let user = rows[0]
 
     // 2. Resolver o auto-crear el sector de Active Directory
-    const targetSectorId = await resolveOrCreateSector(department, domain)
+    const io = req.app.get('io')
+    const { sectorId: targetSectorId, isNew: isSectorNew } = await resolveOrCreateSector(department, domain)
+    if (isSectorNew && io) {
+      io.emit('sectors:updated')
+    }
 
     // 3. Si el usuario NO existe, auto-aprovisionarlo
     if (!user) {
@@ -200,6 +204,10 @@ authRouter.post('/windows-sso', async (req, res) => {
       )
       user = createdRows[0]
       console.log(`✨ Usuario de Windows / Active Directory auto-aprovisionado: @${cleanUsername} (${friendlyName}) en sector ID ${targetSectorId}`)
+
+      if (io) {
+        io.emit('users:updated')
+      }
     } else {
       let needsUserUpdate = false
       let newDisplayName = user.display_name
@@ -249,6 +257,10 @@ authRouter.post('/windows-sso', async (req, res) => {
         )
         if (refreshed.length > 0) {
           user = refreshed[0]
+        }
+
+        if (io) {
+          io.emit('users:updated')
         }
       }
     }

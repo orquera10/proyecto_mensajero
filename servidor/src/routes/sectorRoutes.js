@@ -72,6 +72,11 @@ sectorRouter.post('/', authenticateToken, requireAdmin, async (req, res) => {
       [name.trim(), description || '', color || '#3b82f6', parsedParentId]
     )
 
+    const io = req.app.get('io')
+    if (io) {
+      io.emit('sectors:updated')
+    }
+
     res.status(201).json({
       message: 'Sector creado correctamente',
       sector: {
@@ -107,6 +112,12 @@ sectorRouter.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
       [name.trim(), description || '', color || '#3b82f6', parsedParentId, parsedId]
     )
 
+    const io = req.app.get('io')
+    if (io) {
+      io.emit('sectors:updated')
+      io.emit('users:updated')
+    }
+
     res.json({ message: 'Sector actualizado correctamente' })
   } catch (err) {
     console.error('Error updating sector:', err)
@@ -119,6 +130,13 @@ sectorRouter.delete('/:id', authenticateToken, requireAdmin, async (req, res) =>
   try {
     const { id } = req.params
     await query('DELETE FROM sectors WHERE id = ?', [id])
+
+    const io = req.app.get('io')
+    if (io) {
+      io.emit('sectors:updated')
+      io.emit('users:updated')
+    }
+
     res.json({ message: 'Sector eliminado correctamente' })
   } catch (err) {
     console.error('Error deleting sector:', err)

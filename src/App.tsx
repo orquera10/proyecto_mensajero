@@ -244,6 +244,74 @@ export const App: React.FC = () => {
     return () => clearInterval(syncInterval)
   }, [])
 
+  const loadDataDebounceRef = useRef<any>(null)
+
+  // Fetch initial data (users, sectors and unread broadcasts)
+  const loadInitialData = useCallback(async (isSilent = false) => {
+    try {
+      const [sectorsRes, usersRes, broadcastUnreadRes] = await Promise.all([
+        apiService.getSectors(),
+        apiService.getUsers(),
+        apiService.getBroadcastUnreadCount().catch((err) => {
+          console.error('Error fetching broadcast unread count:', err)
+          return { unreadCount: 0, lastReadId: 0 }
+        }),
+      ])
+      setSectors(sectorsRes.sectors)
+      const bUnread = isBroadcastActiveRef.current ? 0 : (broadcastUnreadRes?.unreadCount || 0)
+
+      // Solo notificar si hay comunicados nuevos respecto a los ya conocidos y no es recarga silenciosa
+      if (!isSilent && bUnread > (broadcastUnreadCountRef.current || 0) && !isBroadcastActiveRef.current) {
+        notificationService.notifyIncomingMessage(
+          '📢 Avisos y Difusión',
+          `Tienes ${bUnread} comunicado${bUnread > 1 ? 's' : ''} institucional${bUnread > 1 ? 'es' : ''} pendiente${bUnread > 1 ? 's' : ''}`,
+          true
+        )
+      }
+      setBroadcastUnreadCount(bUnread)
+      broadcastUnreadCountRef.current = bUnread
+
+      setUsers((prevUsers) => {
+        return usersRes.users.map((u) => {
+          // Merge with presence from backend API or real-time presenceMapRef
+          const realtime = presenceMapRef.current[u.id]
+          const presence = realtime?.presence || u.presence || 'offline'
+          const statusText = realtime?.statusText || u.statusText || ''
+
+          if (presence !== 'offline') {
+            presenceMapRef.current[u.id] = { presence, statusText }
+          }
+
+          const existing = prevUsers.find((p) => p.id === u.id)
+          const unreadCount =
+            existing?.unreadCount !== undefined ? existing.unreadCount : u.unreadCount || 0
+
+          return {
+            ...u,
+            presence,
+            statusText,
+            unreadCount,
+            lastMessage: existing?.lastMessage || u.lastMessage || '',
+            lastMessageTime: existing?.lastMessageTime || u.lastMessageTime || undefined,
+          }
+        })
+      })
+
+      const totalUnread = usersRes.users.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+      notificationService.updateUnreadTitle(totalUnread + bUnread)
+    } catch (err: any) {
+      console.error('Error loading initial data:', err)
+    }
+  }, [])
+
+  // Versión con debounce para actualizaciones automáticas en tiempo real
+  const triggerDataReload = useCallback(() => {
+    if (loadDataDebounceRef.current) clearTimeout(loadDataDebounceRef.current)
+    loadDataDebounceRef.current = setTimeout(() => {
+      loadInitialData(true)
+    }, 300)
+  }, [loadInitialData])
+
   // Setup Socket.IO Event Handlers
   useEffect(() => {
     socketService.setHandlers({
@@ -272,8 +340,26 @@ export const App: React.FC = () => {
         }
       },
 
+      onUsersUpdated: () => {
+        triggerDataReload()
+      },
+
+      onSectorsUpdated: () => {
+        triggerDataReload()
+      },
+
       onPresenceSync: (onlineMap) => {
         presenceMapRef.current = { ...onlineMap }
+
+        // Si se reporta algún usuario conectado que no tenemos en el listado local, recargar datos completos
+        const hasUnknownUser = Object.keys(onlineMap).some(
+          (uid) => !usersRef.current.some((u) => Number(u.id) === Number(uid))
+        )
+        if (hasUnknownUser) {
+          triggerDataReload()
+          return
+        }
+
         setUsers((prev) =>
           prev.map((u) => {
             const onlineInfo = onlineMap[u.id]
@@ -294,6 +380,13 @@ export const App: React.FC = () => {
           delete presenceMapRef.current[userId]
         } else {
           presenceMapRef.current[userId] = { presence, statusText }
+        }
+
+        // Si un usuario se conecta y no existe aún en nuestro estado local (ej: primer login con Active Directory o recién creado), recargar
+        const userExists = usersRef.current.some((u) => Number(u.id) === Number(userId))
+        if (!userExists && presence !== 'offline') {
+          triggerDataReload()
+          return
         }
 
         setUsers((prev) =>
@@ -343,9 +436,14 @@ export const App: React.FC = () => {
           return updated
         })
 
+        // Si el remitente es un usuario nuevo que aún no figuraba en la lista local, recargar
+        const sender = usersRef.current.find((u) => Number(u.id) === Number(message.sender_id))
+        if (!sender && Number(message.sender_id) !== Number(me?.id)) {
+          triggerDataReload()
+        }
+
         // Trigger Notification & Sound Alert if message is from someone else
         if (Number(message.sender_id) !== Number(me?.id)) {
-          const sender = usersRef.current.find((u) => Number(u.id) === Number(message.sender_id))
           const senderName = sender ? sender.display_name : 'Nuevo Mensaje'
           const bodyText =
             message.content || (message.message_type === 'image' ? '📷 Imagen adjunta' : '📎 Archivo adjunto')
@@ -482,64 +580,7 @@ export const App: React.FC = () => {
         console.error('Socket error:', err)
       },
     })
-  }, [])
-
-  // Fetch initial data (users, sectors and unread broadcasts) after login
-  const loadInitialData = useCallback(async () => {
-    try {
-      const [sectorsRes, usersRes, broadcastUnreadRes] = await Promise.all([
-        apiService.getSectors(),
-        apiService.getUsers(),
-        apiService.getBroadcastUnreadCount().catch((err) => {
-          console.error('Error fetching broadcast unread count on login:', err)
-          return { unreadCount: 0, lastReadId: 0 }
-        }),
-      ])
-      setSectors(sectorsRes.sectors)
-      const bUnread = isBroadcastActiveRef.current ? 0 : (broadcastUnreadRes?.unreadCount || 0)
-      setBroadcastUnreadCount(bUnread)
-      broadcastUnreadCountRef.current = bUnread
-
-      if (bUnread > 0 && !isBroadcastActiveRef.current) {
-        notificationService.notifyIncomingMessage(
-          '📢 Avisos y Difusión',
-          `Tienes ${bUnread} comunicado${bUnread > 1 ? 's' : ''} institucional${bUnread > 1 ? 'es' : ''} pendiente${bUnread > 1 ? 's' : ''}`,
-          true
-        )
-      }
-
-      setUsers((prevUsers) => {
-        return usersRes.users.map((u) => {
-          // Merge with presence from backend API or real-time presenceMapRef
-          const realtime = presenceMapRef.current[u.id]
-          const presence = realtime?.presence || u.presence || 'offline'
-          const statusText = realtime?.statusText || u.statusText || ''
-
-          if (presence !== 'offline') {
-            presenceMapRef.current[u.id] = { presence, statusText }
-          }
-
-          const existing = prevUsers.find((p) => p.id === u.id)
-          const unreadCount =
-            existing?.unreadCount !== undefined ? existing.unreadCount : u.unreadCount || 0
-
-          return {
-            ...u,
-            presence,
-            statusText,
-            unreadCount,
-            lastMessage: existing?.lastMessage || u.lastMessage || '',
-            lastMessageTime: existing?.lastMessageTime || u.lastMessageTime || undefined,
-          }
-        })
-      })
-
-      const totalUnread = usersRes.users.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
-      notificationService.updateUnreadTitle(totalUnread + bUnread)
-    } catch (err: any) {
-      console.error('Error loading initial data:', err)
-    }
-  }, [])
+  }, [loadInitialData, triggerDataReload])
 
   // Handle Manual Login
   const handleConnect = useCallback(async (config: ServerConfig) => {

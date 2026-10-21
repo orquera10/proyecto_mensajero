@@ -17,6 +17,8 @@ export type SocketEventHandlers = {
   onTypingStatus: (senderId: number, senderName: string, isTyping: boolean) => void
   onUserAvatarUpdate?: (data: { userId: number; avatar_url: string }) => void
   onUserProfileUpdate?: (data: { userId: number; display_name: string }) => void
+  onUsersUpdated?: () => void
+  onSectorsUpdated?: () => void
   onBroadcastReceived?: (message: Message) => void
   onDisconnect: () => void
   onError: (err: any) => void
@@ -96,6 +98,14 @@ class SocketService {
 
     this.socket.on('user:profile_updated', (data: { userId: number; display_name: string }) => {
       this.handlers.onUserProfileUpdate?.(data)
+    })
+
+    this.socket.on('users:updated', () => {
+      this.handlers.onUsersUpdated?.()
+    })
+
+    this.socket.on('sectors:updated', () => {
+      this.handlers.onSectorsUpdated?.()
     })
 
     this.socket.on('broadcast:receive', (message: Message) => {
