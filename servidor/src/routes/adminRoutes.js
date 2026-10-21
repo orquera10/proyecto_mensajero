@@ -10,7 +10,9 @@ export const adminRouter = Router()
 // GET /api/admin/stats
 adminRouter.get('/stats', authenticateToken, requireAdmin, async (_req, res) => {
   try {
-    const { rows: userCount } = await query('SELECT COUNT(*) as count FROM users')
+    const { rows: userCount } = await query(
+      "SELECT COUNT(*) as count FROM users WHERE LOWER(username) != 'admin' AND LOWER(display_name) NOT LIKE '%administrador%sistema%'"
+    )
     const { rows: sectorCount } = await query('SELECT COUNT(*) as count FROM sectors')
     const { rows: messageCount } = await query('SELECT COUNT(*) as count FROM messages')
 

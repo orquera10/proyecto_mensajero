@@ -53,12 +53,19 @@ userRouter.get('/', authenticateToken, async (req, res) => {
               ) as last_message_time
        FROM users u
        LEFT JOIN sectors s ON u.sector_id = s.id
+       WHERE LOWER(u.username) != 'admin' 
+         AND LOWER(u.display_name) NOT LIKE '%administrador%sistema%'
        ORDER BY s.name ASC, u.display_name ASC`,
       [currentUserId, currentUserId, currentUserId, currentUserId, currentUserId, currentUserId, currentUserId]
     )
 
     const presenceMap = getUserPresenceMap()
-    const usersWithPresence = rows.map((u) => {
+    const validRows = rows.filter((u) => {
+      const uname = (u.username || '').toLowerCase().trim()
+      const dname = (u.display_name || '').toLowerCase().trim()
+      return uname !== 'admin' && !dname.includes('administrador del sistema') && !dname.includes('administrador sistema')
+    })
+    const usersWithPresence = validRows.map((u) => {
       let snippet = u.last_message_content
       if (!snippet && u.last_message_type) {
         snippet = u.last_message_type === 'image' ? '📷 Imagen' : '📎 Archivo'

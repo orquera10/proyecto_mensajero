@@ -272,7 +272,12 @@ export const App: React.FC = () => {
       broadcastUnreadCountRef.current = bUnread
 
       setUsers((prevUsers) => {
-        return usersRes.users.map((u) => {
+        const validUsers = usersRes.users.filter((u) => {
+          const uname = (u.username || '').toLowerCase().trim()
+          const dname = (u.display_name || '').toLowerCase().trim()
+          return uname !== 'admin' && !dname.includes('administrador del sistema') && !dname.includes('administrador sistema')
+        })
+        return validUsers.map((u) => {
           // Merge with presence from backend API or real-time presenceMapRef
           const realtime = presenceMapRef.current[u.id]
           const presence = realtime?.presence || u.presence || 'offline'
@@ -297,7 +302,13 @@ export const App: React.FC = () => {
         })
       })
 
-      const totalUnread = usersRes.users.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+      const totalUnread = usersRes.users
+        .filter((u) => {
+          const uname = (u.username || '').toLowerCase().trim()
+          const dname = (u.display_name || '').toLowerCase().trim()
+          return uname !== 'admin' && !dname.includes('administrador del sistema') && !dname.includes('administrador sistema')
+        })
+        .reduce((acc, u) => acc + (u.unreadCount || 0), 0)
       notificationService.updateUnreadTitle(totalUnread + bUnread)
     } catch (err: any) {
       console.error('Error loading initial data:', err)

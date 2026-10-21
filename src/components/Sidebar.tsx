@@ -287,7 +287,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Filter and build tree of sectors & subsectors
   const sectorTree = useMemo(() => {
     const q = searchQuery.toLowerCase().trim()
-    const otherUsers = users.filter((u) => u.id !== currentUserId)
+    const otherUsers = users.filter((u) => {
+      if (u.id === currentUserId) return false
+      const uname = (u.username || '').toLowerCase().trim()
+      const dname = (u.display_name || '').toLowerCase().trim()
+      if (uname === 'admin' || dname.includes('administrador del sistema') || dname.includes('administrador sistema')) {
+        return false
+      }
+      return true
+    })
 
     const filtered = otherUsers.filter((u) => {
       if (!q) return true

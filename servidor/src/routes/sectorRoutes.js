@@ -46,7 +46,9 @@ sectorRouter.get('/', authenticateToken, async (_req, res) => {
     const { rows } = await query(
       `SELECT s.*, COUNT(u.id) as user_count
        FROM sectors s
-       LEFT JOIN users u ON u.sector_id = s.id
+       LEFT JOIN users u ON u.sector_id = s.id 
+         AND LOWER(u.username) != 'admin' 
+         AND LOWER(u.display_name) NOT LIKE '%administrador%sistema%'
        GROUP BY s.id
        ORDER BY s.name ASC`
     )
