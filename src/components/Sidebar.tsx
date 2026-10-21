@@ -6,7 +6,6 @@ import {
   FolderKanban,
   Star,
   Megaphone,
-  MessageSquare,
 } from 'lucide-react'
 import type { User, Sector, PresenceStatus } from '../types'
 import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
@@ -135,10 +134,9 @@ const SectorTreeItem: React.FC<{
           {totalUnreadInBranch > 0 && (
             <span
               title={`${totalUnreadInBranch} mensaje${totalUnreadInBranch > 1 ? 's' : ''} nuevo${totalUnreadInBranch > 1 ? 's' : ''} en este sector`}
-              className="flex items-center gap-1 h-5 min-w-[20px] px-1.5 rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-md shadow-blue-500/40 animate-pulse"
+              className="flex h-5 min-w-[20px] px-1.5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white shadow-md shadow-blue-500/30 animate-pulse"
             >
-              <MessageSquare className="h-2.5 w-2.5 fill-white shrink-0" />
-              <span>{totalUnreadInBranch > 99 ? '99+' : totalUnreadInBranch}</span>
+              {totalUnreadInBranch > 99 ? '99+' : totalUnreadInBranch}
             </span>
           )}
           <span className="text-[11px] text-slate-500 font-normal">
@@ -262,9 +260,8 @@ const SectorTreeItem: React.FC<{
 
                 {/* Unread badge */}
                 {user.unreadCount && user.unreadCount > 0 && !isActive ? (
-                  <span className="flex items-center gap-1 h-5 min-w-[20px] px-1.5 shrink-0 justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white shadow-md shadow-blue-500/30 animate-pulse">
-                    <MessageSquare className="h-2.5 w-2.5 fill-white shrink-0" />
-                    <span>{user.unreadCount > 99 ? '99+' : user.unreadCount}</span>
+                  <span className="flex h-5 min-w-[20px] px-1.5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white shadow-md shadow-blue-500/30 animate-pulse">
+                    {user.unreadCount > 99 ? '99+' : user.unreadCount}
                   </span>
                 ) : null}
               </button>
