@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import type { User, Sector, PresenceStatus } from '../types'
 import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
+import { formatSectorName } from '../utils/formatters'
 
 interface SidebarProps {
   users: User[]
@@ -303,7 +304,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     for (const s of sectors) {
       nodeMap.set(s.id, {
         sectorId: s.id,
-        sectorName: s.name,
+        sectorName: formatSectorName(s.name),
         sectorColor: s.color || '#3b82f6',
         parent_id: s.parent_id || null,
         users: [],

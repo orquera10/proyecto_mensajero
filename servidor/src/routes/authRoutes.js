@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
-import { query } from '../db.js'
+import { query, formatSectorName } from '../db.js'
 import { generateToken, authenticateToken } from '../auth.js'
 import { upload } from '../upload.js'
 
@@ -103,13 +103,8 @@ async function resolveOrCreateSector(department, domain) {
 
   for (let i = 0; i < parts.length; i++) {
     const partName = parts[i]
-    // Formatear nombre: Capitalizar palabras manteniendo legibilidad
-    const formattedName = partName
-      .trim()
-      .split(' ')
-      .filter(Boolean)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(' ')
+    // Formatear nombre: Capitalizar primer letra de cada palabra (Title Case)
+    const formattedName = formatSectorName(partName)
 
     // 1. Buscar si ya existe bajo currentParentId
     let foundSector = null
@@ -159,11 +154,18 @@ async function resolveOrCreateSector(department, domain) {
     if (foundSector) {
       currentSectorId = foundSector.id
       currentParentId = foundSector.id
+      // Asegurar que el nombre en base de datos esté normalizado (Title Case) si estaba en mayúsculas
+      if (formattedName && foundSector.name !== formattedName) {
+        await query(`UPDATE sectors SET name = ? WHERE id = ?`, [formattedName, foundSector.id])
+        console.log(`🔧 Sector #${foundSector.id} normalizado a Title Case: "${foundSector.name}" -> "${formattedName}"`)
+        foundSector.name = formattedName
+        anySectorCreatedOrReparented = true
+      }
     } else {
       // 3. Crear el sector en este nivel de la jerarquía
       const color = getSectorColor(formattedName)
       const desc = currentParentId
-        ? `Subsector institucional en ${parts.slice(0, i + 1).join(' > ')}`
+        ? `Subsector institucional en ${parts.slice(0, i + 1).map(formatSectorName).join(' > ')}`
         : `Sector institucional creado desde Active Directory (${domain || 'AD'})`
 
       const insertRes = await query(

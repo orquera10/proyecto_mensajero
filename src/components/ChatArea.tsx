@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import type { User, Message, PresenceStatus } from '../types'
 import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
+import { formatSectorName } from '../utils/formatters'
 
 interface ChatAreaProps {
   activeUser: User | null
@@ -58,15 +59,23 @@ function formatBytes(bytes?: number): string {
 
 function getSectorLabel(user?: User | null): string {
   if (!user) return ''
-  if (user.sector_short_path) return user.sector_short_path
+  if (user.sector_short_path) {
+    return user.sector_short_path
+      .split(/\s*(?:\/|>)\s*/)
+      .map(formatSectorName)
+      .join(' / ')
+  }
   if (user.sector_full_path) {
     const parts = user.sector_full_path.split(/\s*(?:>|\/)\s*/).filter(Boolean)
     if (parts.length >= 2) {
-      return `${parts[parts.length - 2]} / ${parts[parts.length - 1]}`
+      return `${formatSectorName(parts[parts.length - 2])} / ${formatSectorName(parts[parts.length - 1])}`
     }
     return user.sector_full_path
+      .split(/\s*(?:>|\/)\s*/)
+      .map(formatSectorName)
+      .join(' > ')
   }
-  return user.sector_name || ''
+  return formatSectorName(user.sector_name || '')
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({
@@ -546,7 +555,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-medium truncate max-w-[130px] sm:max-w-[180px] ${
                           isMine ? 'bg-blue-700/70 text-blue-100' : 'bg-slate-800 text-slate-300 border border-slate-700/60'
                         }`}>
-                          {msg.sender_sector}
+                          {formatSectorName(msg.sender_sector)}
                         </span>
                       )}
                       {(msg.sender_is_leader || msg.sender_role === 'admin') && (

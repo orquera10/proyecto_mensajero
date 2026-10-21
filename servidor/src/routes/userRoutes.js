@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
-import { query } from '../db.js'
+import { query, formatSectorName } from '../db.js'
 import { authenticateToken, requireAdmin } from '../auth.js'
 import { getUserPresenceMap } from '../socket.js'
 import { computeSectorHierarchy } from './sectorRoutes.js'
@@ -65,7 +65,8 @@ userRouter.get('/', authenticateToken, async (req, res) => {
       }
 
       const sectorInfo = u.sector_id ? sectorMap.get(u.sector_id) : null
-      let shortPath = u.sector_name || 'General'
+      const rawSectorName = sectorInfo ? sectorInfo.name : formatSectorName(u.sector_name)
+      let shortPath = rawSectorName || 'General'
       if (sectorInfo) {
         if (sectorInfo.parent_name) {
           shortPath = `${sectorInfo.parent_name} / ${sectorInfo.name}`
@@ -80,9 +81,9 @@ userRouter.get('/', authenticateToken, async (req, res) => {
         display_name: (u.display_name || '').replace(/[\uFFFD\uFFFE]/g, 'ñ').replace(/Maga[^\w\s]?a/gi, 'Magaña'),
         role: u.role,
         sector_id: u.sector_id,
-        sector_name: u.sector_name,
+        sector_name: rawSectorName,
         sector_color: u.sector_color,
-        sector_full_path: sectorInfo ? sectorInfo.full_path : (u.sector_name || 'General'),
+        sector_full_path: sectorInfo ? sectorInfo.full_path : (rawSectorName || 'General'),
         sector_short_path: shortPath,
         sector_parent_id: sectorInfo ? sectorInfo.parent_id : null,
         is_leader: Boolean(u.is_leader),

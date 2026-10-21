@@ -9,6 +9,16 @@ export let dbType = 'sqlite'
 let pgPool = null
 let sqliteDb = null
 
+// Normaliza nombres de sectores a Title Case (Primer letra en mayúscula de cada palabra)
+export function formatSectorName(str) {
+  if (!str || typeof str !== 'string') return ''
+  return str
+    .trim()
+    .toLowerCase()
+    .replace(/(?:^|[\s\-\/\(\).])[a-záéíóúñü]/gi, (letter) => letter.toUpperCase())
+    .replace(/\s+/g, ' ')
+}
+
 // Initialize Database connection
 export async function initDb() {
   const isPostgres = Boolean(config.db.url || config.db.host)
@@ -261,8 +271,18 @@ async function runMigrations() {
       await query(`UPDATE users SET display_name = ? WHERE id = ?`, [fixedName, u.id])
       console.log(`🔧 Corregido nombre de usuario #${u.id}: "${u.display_name}" -> "${fixedName}"`)
     }
+
+    // 3. Normalizar nombres de sectores existentes a Title Case (Primer letra en mayúscula de cada palabra)
+    const { rows: allSectors } = await query(`SELECT id, name FROM sectors`)
+    for (const sec of allSectors) {
+      const normalized = formatSectorName(sec.name)
+      if (normalized && normalized !== sec.name) {
+        await query(`UPDATE sectors SET name = ? WHERE id = ?`, [normalized, sec.id])
+        console.log(`🔧 Normalizado nombre de sector #${sec.id}: "${sec.name}" -> "${normalized}"`)
+      }
+    }
   } catch (cleanErr) {
-    console.warn('Advertencia al sanitizar nombres de usuario:', cleanErr.message)
+    console.warn('Advertencia al sanitizar base de datos:', cleanErr.message)
   }
 
   console.log('✅ Estructura de base de datos lista.')

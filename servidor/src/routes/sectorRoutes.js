@@ -1,23 +1,24 @@
 import { Router } from 'express'
-import { query } from '../db.js'
+import { query, formatSectorName } from '../db.js'
 import { authenticateToken, requireAdmin } from '../auth.js'
 
 export const sectorRouter = Router()
 
 // Helper to compute full path and depth for sectors
 export function computeSectorHierarchy(sectors) {
-  const map = new Map(sectors.map((s) => [s.id, { ...s }]))
+  const map = new Map(sectors.map((s) => [s.id, { ...s, name: formatSectorName(s.name) }]))
 
   function getFullPath(id, visited = new Set()) {
     if (!id || visited.has(id)) return ''
     visited.add(id)
     const s = map.get(id)
     if (!s) return ''
+    const sName = formatSectorName(s.name)
     if (s.parent_id && map.has(s.parent_id)) {
       const parentPath = getFullPath(s.parent_id, visited)
-      return parentPath ? `${parentPath} > ${s.name}` : s.name
+      return parentPath ? `${parentPath} > ${sName}` : sName
     }
-    return s.name
+    return sName
   }
 
   function getDepth(id, visited = new Set()) {
@@ -30,8 +31,9 @@ export function computeSectorHierarchy(sectors) {
 
   return sectors.map((s) => ({
     ...s,
+    name: formatSectorName(s.name),
     parent_id: s.parent_id || null,
-    parent_name: s.parent_id && map.get(s.parent_id) ? map.get(s.parent_id).name : null,
+    parent_name: s.parent_id && map.get(s.parent_id) ? formatSectorName(map.get(s.parent_id).name) : null,
     full_path: getFullPath(s.id),
     depth: getDepth(s.id),
     user_count: parseInt(s.user_count || '0', 10),
@@ -66,10 +68,11 @@ sectorRouter.post('/', authenticateToken, requireAdmin, async (req, res) => {
     }
 
     const parsedParentId = parent_id ? parseInt(parent_id, 10) : null
+    const normalizedName = formatSectorName(name)
 
     const { insertId } = await query(
       'INSERT INTO sectors (name, description, color, parent_id) VALUES (?, ?, ?, ?)',
-      [name.trim(), description || '', color || '#3b82f6', parsedParentId]
+      [normalizedName, description || '', color || '#3b82f6', parsedParentId]
     )
 
     const io = req.app.get('io')
@@ -81,7 +84,7 @@ sectorRouter.post('/', authenticateToken, requireAdmin, async (req, res) => {
       message: 'Sector creado correctamente',
       sector: {
         id: insertId,
-        name: name.trim(),
+        name: normalizedName,
         description: description || '',
         color: color || '#3b82f6',
         parent_id: parsedParentId,
@@ -101,6 +104,7 @@ sectorRouter.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
 
     const parsedId = parseInt(id, 10)
     let parsedParentId = parent_id ? parseInt(parent_id, 10) : null
+    const normalizedName = formatSectorName(name)
 
     // Prevent sector from being its own parent
     if (parsedParentId === parsedId) {
@@ -109,7 +113,7 @@ sectorRouter.put('/:id', authenticateToken, requireAdmin, async (req, res) => {
 
     await query(
       'UPDATE sectors SET name = ?, description = ?, color = ?, parent_id = ? WHERE id = ?',
-      [name.trim(), description || '', color || '#3b82f6', parsedParentId, parsedId]
+      [normalizedName, description || '', color || '#3b82f6', parsedParentId, parsedId]
     )
 
     const io = req.app.get('io')
