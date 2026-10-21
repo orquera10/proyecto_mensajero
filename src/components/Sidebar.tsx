@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   Search,
   ChevronDown,
@@ -6,6 +6,7 @@ import {
   FolderKanban,
   Star,
   Megaphone,
+  MessageSquare,
 } from 'lucide-react'
 import type { User, Sector, PresenceStatus } from '../types'
 import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
@@ -76,8 +77,16 @@ const SectorTreeItem: React.FC<{
     )
   }
 
+  const getTotalUnreadCount = (n: SectorNode): number => {
+    return (
+      n.users.reduce((acc, u) => acc + (u.unreadCount || 0), 0) +
+      n.children.reduce((acc, c) => acc + getTotalUnreadCount(c), 0)
+    )
+  }
+
   const totalUsersInBranch = getTotalUsersCount(node)
   const totalOnlineInBranch = getTotalOnlineCount(node)
+  const totalUnreadInBranch = getTotalUnreadCount(node)
 
   if (searchQuery && totalUsersInBranch === 0) return null
 
@@ -85,7 +94,11 @@ const SectorTreeItem: React.FC<{
     <div
       className={`rounded-xl transition-all ${
         level === 0
-          ? 'bg-slate-950/40 border border-slate-800/60 overflow-hidden mb-2'
+          ? `bg-slate-950/40 border ${
+              totalUnreadInBranch > 0
+                ? 'border-blue-500/60 shadow-sm shadow-blue-500/10'
+                : 'border-slate-800/60'
+            } overflow-hidden mb-2`
           : 'mt-1.5'
       }`}
     >
@@ -109,16 +122,29 @@ const SectorTreeItem: React.FC<{
             className="h-2 w-2 rounded-full shrink-0"
             style={{ backgroundColor: node.sectorColor }}
           />
-          <span className="truncate">{node.sectorName}</span>
+          <span className={`truncate ${totalUnreadInBranch > 0 ? 'text-white font-bold' : ''}`}>
+            {node.sectorName}
+          </span>
           {node.children.length > 0 && (
             <span className="rounded bg-slate-800/80 px-1 py-0.2 text-[9px] font-normal text-slate-400 shrink-0">
               {node.children.length} {node.children.length === 1 ? 'subsector' : 'subsectores'}
             </span>
           )}
         </div>
-        <span className="text-[11px] text-slate-500 font-normal shrink-0 ml-1">
-          {totalOnlineInBranch}/{totalUsersInBranch}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0 ml-1">
+          {totalUnreadInBranch > 0 && (
+            <span
+              title={`${totalUnreadInBranch} mensaje${totalUnreadInBranch > 1 ? 's' : ''} nuevo${totalUnreadInBranch > 1 ? 's' : ''} en este sector`}
+              className="flex items-center gap-1 h-5 min-w-[20px] px-1.5 rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-md shadow-blue-500/40 animate-pulse"
+            >
+              <MessageSquare className="h-2.5 w-2.5 fill-white shrink-0" />
+              <span>{totalUnreadInBranch > 99 ? '99+' : totalUnreadInBranch}</span>
+            </span>
+          )}
+          <span className="text-[11px] text-slate-500 font-normal">
+            {totalOnlineInBranch}/{totalUsersInBranch}
+          </span>
+        </div>
       </button>
 
       {/* Expanded Content: Direct Users + Subsectors */}
@@ -236,8 +262,9 @@ const SectorTreeItem: React.FC<{
 
                 {/* Unread badge */}
                 {user.unreadCount && user.unreadCount > 0 && !isActive ? (
-                  <span className="flex h-5 min-w-[20px] px-1.5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white shadow-md shadow-blue-500/30 animate-pulse">
-                    {user.unreadCount}
+                  <span className="flex items-center gap-1 h-5 min-w-[20px] px-1.5 shrink-0 justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white shadow-md shadow-blue-500/30 animate-pulse">
+                    <MessageSquare className="h-2.5 w-2.5 fill-white shrink-0" />
+                    <span>{user.unreadCount > 99 ? '99+' : user.unreadCount}</span>
                   </span>
                 ) : null}
               </button>
@@ -283,6 +310,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
       [sectorKey]: !prev[sectorKey],
     }))
   }
+
+  // Auto-desplegar sectores y subsectores que contengan mensajes sin leer
+  useEffect(() => {
+    const unreadUsers = users.filter((u) => u.unreadCount && u.unreadCount > 0 && u.id !== currentUserId)
+    if (unreadUsers.length === 0) return
+
+    setCollapsedSectors((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const u of unreadUsers) {
+        let sId: number | null | undefined = u.sector_id
+        while (sId) {
+          const key = String(sId)
+          if (next[key] === true) {
+            next[key] = false
+            changed = true
+          }
+          const sec = sectors.find((s) => s.id === sId)
+          sId = sec?.parent_id
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [users, sectors, currentUserId])
 
   // Filter and build tree of sectors & subsectors
   const sectorTree = useMemo(() => {
