@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
-import { query, formatSectorName } from '../db.js'
+import { query, formatSectorName, repairCompoundSectors } from '../db.js'
 import { generateToken, authenticateToken } from '../auth.js'
 import { upload } from '../upload.js'
 
@@ -89,6 +89,9 @@ async function resolveOrCreateSector(department, domain) {
     return { sectorId: sysSectors[0]?.id || firstSector[0]?.id || null, isNew: false }
   }
 
+  // 0. Si existen sectores compuestos heredados en la base de datos (ej: el creado antes de la actualización), repararlos primero
+  await repairCompoundSectors()
+
   // Si cleanDept contiene jerarquía separada por '>' o '/' (ej: "SECRETARIA DE NIÑEZ > DIRECCION DE NIÑEZ > LINEA102 > EQUIPO TECNICO")
   const rawParts = cleanDept.split(/\s*(?:>|\/)\s*/).filter(Boolean)
   const parts = rawParts.map((p) => p.trim()).filter(Boolean)
@@ -106,48 +109,53 @@ async function resolveOrCreateSector(department, domain) {
     // Formatear nombre: Capitalizar primer letra de cada palabra (Title Case)
     const formattedName = formatSectorName(partName)
 
-    // 1. Buscar si ya existe bajo currentParentId
-    let foundSector = null
-    const { rows: directMatches } = await query(
+    // 1. Obtener hermanos bajo currentParentId
+    const { rows: siblings } = await query(
       currentParentId === null
-        ? `SELECT id, name, parent_id FROM sectors WHERE parent_id IS NULL AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1`
-        : `SELECT id, name, parent_id FROM sectors WHERE parent_id = ? AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1`,
-      currentParentId === null ? [partName] : [currentParentId, partName]
+        ? `SELECT id, name, parent_id FROM sectors WHERE parent_id IS NULL`
+        : `SELECT id, name, parent_id FROM sectors WHERE parent_id = ?`,
+      currentParentId === null ? [] : [currentParentId]
     )
 
-    if (directMatches && directMatches.length > 0) {
-      foundSector = directMatches[0]
-    } else {
-      // 1b. Búsqueda por contención inteligente bajo el mismo padre
-      const { rows: partialMatches } = await query(
-        currentParentId === null
-          ? `SELECT id, name, parent_id FROM sectors WHERE parent_id IS NULL AND (LOWER(name) LIKE LOWER(?) OR LOWER(?) LIKE ('%' || LOWER(name) || '%')) LIMIT 1`
-          : `SELECT id, name, parent_id FROM sectors WHERE parent_id = ? AND (LOWER(name) LIKE LOWER(?) OR LOWER(?) LIKE ('%' || LOWER(name) || '%')) LIMIT 1`,
-        currentParentId === null
-          ? [`%${partName}%`, partName]
-          : [currentParentId, `%${partName}%`, partName]
-      )
-      if (partialMatches && partialMatches.length > 0) {
-        foundSector = partialMatches[0]
-      }
+    // 1a. Coincidencia exacta (case-insensitive en JS para compatibilidad total con acentos y ñ)
+    let foundSector = siblings.find(
+      (s) =>
+        s.name.trim().toLowerCase() === formattedName.toLowerCase() ||
+        s.name.trim().toLowerCase() === partName.trim().toLowerCase()
+    )
+
+    // 1b. Coincidencia parcial inteligente (sin incluir sectores que contengan '>')
+    if (!foundSector) {
+      foundSector = siblings.find((s) => {
+        if (s.name.includes('>')) return false
+        const sLower = s.name.trim().toLowerCase()
+        const fLower = formattedName.toLowerCase()
+        return sLower.includes(fLower) || fLower.includes(sLower)
+      })
     }
 
     // 2. Si no existe bajo este padre pero existe en la raíz (parent_id IS NULL) y estamos en un nivel hijo:
     // (Ejemplo: 'Equipo Técnico' fue creado previamente sin padre a la altura de secretaría)
     if (!foundSector && currentParentId !== null) {
-      const { rows: orphanMatches } = await query(
-        `SELECT id, name, parent_id FROM sectors
-         WHERE parent_id IS NULL
-           AND (LOWER(TRIM(name)) = LOWER(?) OR LOWER(name) LIKE LOWER(?))
-         LIMIT 1`,
-        [partName, `%${partName}%`]
-      )
-      if (orphanMatches && orphanMatches.length > 0) {
-        foundSector = orphanMatches[0]
-        await query(`UPDATE sectors SET parent_id = ? WHERE id = ?`, [currentParentId, foundSector.id])
+      const { rows: rootSectors } = await query(`SELECT id, name, parent_id FROM sectors WHERE parent_id IS NULL`)
+      const orphan = rootSectors.find((s) => {
+        if (s.name.includes('>')) return false
+        const sLower = s.name.trim().toLowerCase()
+        const fLower = formattedName.toLowerCase()
+        return sLower === fLower || sLower.includes(fLower) || fLower.includes(sLower)
+      })
+
+      if (orphan) {
+        foundSector = orphan
+        await query(`UPDATE sectors SET parent_id = ?, name = ? WHERE id = ?`, [
+          currentParentId,
+          formattedName,
+          foundSector.id,
+        ])
         foundSector.parent_id = currentParentId
+        foundSector.name = formattedName
         anySectorCreatedOrReparented = true
-        console.log(`🔄 Sector "${foundSector.name}" (ID ${foundSector.id}) re-ubicado bajo padre ID ${currentParentId}`)
+        console.log(`🔄 Sector "${formattedName}" (ID ${foundSector.id}) re-ubicado bajo padre ID ${currentParentId}`)
       }
     }
 
@@ -178,9 +186,9 @@ async function resolveOrCreateSector(department, domain) {
       if (!currentSectorId) {
         const { rows: fetchCreated } = await query(
           currentParentId === null
-            ? `SELECT id FROM sectors WHERE parent_id IS NULL AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1`
-            : `SELECT id FROM sectors WHERE parent_id = ? AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1`,
-          currentParentId === null ? [partName] : [currentParentId, partName]
+            ? `SELECT id FROM sectors WHERE parent_id IS NULL AND name = ? LIMIT 1`
+            : `SELECT id FROM sectors WHERE parent_id = ? AND name = ? LIMIT 1`,
+          currentParentId === null ? [formattedName] : [currentParentId, formattedName]
         )
         currentSectorId = fetchCreated[0]?.id || null
       }

@@ -281,11 +281,79 @@ async function runMigrations() {
         console.log(`🔧 Normalizado nombre de sector #${sec.id}: "${sec.name}" -> "${normalized}"`)
       }
     }
+
+    // 4. Reparar y desglosar sectores con rutas compuestas heredadas (ej: "A > B > C")
+    await repairCompoundSectors()
   } catch (cleanErr) {
     console.warn('Advertencia al sanitizar base de datos:', cleanErr.message)
   }
 
   console.log('✅ Estructura de base de datos lista.')
+}
+
+// Desglosa sectores guardados con nombres de ruta completa en árboles de sectores y subsectores reales
+export async function repairCompoundSectors() {
+  try {
+    const { rows: compound } = await query(`SELECT * FROM sectors WHERE name LIKE ?`, ['%>%'])
+    if (!compound || compound.length === 0) return
+
+    console.log(`🔍 Encontrados ${compound.length} sector(es) con ruta compuesta. Desglosando en jerarquía real...`)
+
+    for (const comp of compound) {
+      const parts = comp.name.split(/\s*(?:>|\/)\s*/).filter(Boolean)
+      if (parts.length <= 1) continue
+
+      let currentParentId = null
+
+      // Crear o ubicar los padres intermedios
+      for (let i = 0; i < parts.length - 1; i++) {
+        const segName = formatSectorName(parts[i])
+        const { rows: siblings } = await query(
+          currentParentId === null
+            ? `SELECT id, name FROM sectors WHERE parent_id IS NULL`
+            : `SELECT id, name FROM sectors WHERE parent_id = ?`,
+          currentParentId === null ? [] : [currentParentId]
+        )
+
+        let parentSector = siblings.find(
+          (s) => s.name.trim().toLowerCase() === segName.toLowerCase() && !s.name.includes('>')
+        )
+
+        if (parentSector) {
+          currentParentId = parentSector.id
+        } else {
+          const desc = currentParentId
+            ? `Subsector institucional en ${parts.slice(0, i + 1).map(formatSectorName).join(' > ')}`
+            : `Sector institucional principal`
+          const { insertId } = await query(
+            `INSERT INTO sectors (name, description, color, parent_id) VALUES (?, ?, ?, ?)`,
+            [segName, desc, '#3b82f6', currentParentId]
+          )
+          currentParentId = insertId
+          if (!currentParentId) {
+            const { rows: created } = await query(
+              currentParentId === null
+                ? `SELECT id FROM sectors WHERE parent_id IS NULL AND name = ? LIMIT 1`
+                : `SELECT id FROM sectors WHERE parent_id = ? AND name = ? LIMIT 1`,
+              currentParentId === null ? [segName] : [currentParentId, segName]
+            )
+            currentParentId = created[0]?.id
+          }
+          console.log(`  ➕ Creado sector padre: "${segName}" (ID ${currentParentId})`)
+        }
+      }
+
+      // Convertir el sector compuesto original en el subsector hoja
+      const leafName = formatSectorName(parts[parts.length - 1])
+      await query(
+        `UPDATE sectors SET name = ?, parent_id = ?, description = ? WHERE id = ?`,
+        [leafName, currentParentId, `Subsector institucional en ${parts.map(formatSectorName).join(' > ')}`, comp.id]
+      )
+      console.log(`  ✅ Sector compuesto #${comp.id} transformado en subsector hoja: "${leafName}" bajo padre ID ${currentParentId}`)
+    }
+  } catch (err) {
+    console.warn('Advertencia al reparar sectores compuestos:', err.message)
+  }
 }
 
 // Seed initial sectors and admin user if empty
