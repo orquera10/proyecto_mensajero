@@ -89,49 +89,106 @@ async function resolveOrCreateSector(department, domain) {
     return { sectorId: sysSectors[0]?.id || firstSector[0]?.id || null, isNew: false }
   }
 
-  // 1. Búsqueda exacta (case-insensitive)
-  const { rows: exactMatches } = await query(
-    `SELECT id, name FROM sectors WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1`,
-    [cleanDept]
-  )
-  if (exactMatches.length > 0) {
-    return { sectorId: exactMatches[0].id, isNew: false }
+  // Si cleanDept contiene jerarquía separada por '>' o '/' (ej: "SECRETARIA DE NIÑEZ > DIRECCION DE NIÑEZ > LINEA102 > EQUIPO TECNICO")
+  const rawParts = cleanDept.split(/\s*(?:>|\/)\s*/).filter(Boolean)
+  const parts = rawParts.map((p) => p.trim()).filter(Boolean)
+
+  if (parts.length === 0) {
+    return { sectorId: null, isNew: false }
   }
 
-  // 2. Búsqueda por contención inteligente (ej: AD dice "Sistemas" y en la BD existe "Sistemas y TI", o viceversa)
-  const { rows: partialMatches } = await query(
-    `SELECT id, name FROM sectors WHERE LOWER(name) LIKE LOWER(?) OR LOWER(?) LIKE ('%' || LOWER(name) || '%') LIMIT 1`,
-    [`%${cleanDept}%`, cleanDept]
-  )
-  if (partialMatches.length > 0) {
-    return { sectorId: partialMatches[0].id, isNew: false }
+  let currentParentId = null
+  let anySectorCreatedOrReparented = false
+  let currentSectorId = null
+
+  for (let i = 0; i < parts.length; i++) {
+    const partName = parts[i]
+    // Formatear nombre: Capitalizar palabras manteniendo legibilidad
+    const formattedName = partName
+      .trim()
+      .split(' ')
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ')
+
+    // 1. Buscar si ya existe bajo currentParentId
+    let foundSector = null
+    const { rows: directMatches } = await query(
+      currentParentId === null
+        ? `SELECT id, name, parent_id FROM sectors WHERE parent_id IS NULL AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1`
+        : `SELECT id, name, parent_id FROM sectors WHERE parent_id = ? AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1`,
+      currentParentId === null ? [partName] : [currentParentId, partName]
+    )
+
+    if (directMatches && directMatches.length > 0) {
+      foundSector = directMatches[0]
+    } else {
+      // 1b. Búsqueda por contención inteligente bajo el mismo padre
+      const { rows: partialMatches } = await query(
+        currentParentId === null
+          ? `SELECT id, name, parent_id FROM sectors WHERE parent_id IS NULL AND (LOWER(name) LIKE LOWER(?) OR LOWER(?) LIKE ('%' || LOWER(name) || '%')) LIMIT 1`
+          : `SELECT id, name, parent_id FROM sectors WHERE parent_id = ? AND (LOWER(name) LIKE LOWER(?) OR LOWER(?) LIKE ('%' || LOWER(name) || '%')) LIMIT 1`,
+        currentParentId === null
+          ? [`%${partName}%`, partName]
+          : [currentParentId, `%${partName}%`, partName]
+      )
+      if (partialMatches && partialMatches.length > 0) {
+        foundSector = partialMatches[0]
+      }
+    }
+
+    // 2. Si no existe bajo este padre pero existe en la raíz (parent_id IS NULL) y estamos en un nivel hijo:
+    // (Ejemplo: 'Equipo Técnico' fue creado previamente sin padre a la altura de secretaría)
+    if (!foundSector && currentParentId !== null) {
+      const { rows: orphanMatches } = await query(
+        `SELECT id, name, parent_id FROM sectors
+         WHERE parent_id IS NULL
+           AND (LOWER(TRIM(name)) = LOWER(?) OR LOWER(name) LIKE LOWER(?))
+         LIMIT 1`,
+        [partName, `%${partName}%`]
+      )
+      if (orphanMatches && orphanMatches.length > 0) {
+        foundSector = orphanMatches[0]
+        await query(`UPDATE sectors SET parent_id = ? WHERE id = ?`, [currentParentId, foundSector.id])
+        foundSector.parent_id = currentParentId
+        anySectorCreatedOrReparented = true
+        console.log(`🔄 Sector "${foundSector.name}" (ID ${foundSector.id}) re-ubicado bajo padre ID ${currentParentId}`)
+      }
+    }
+
+    if (foundSector) {
+      currentSectorId = foundSector.id
+      currentParentId = foundSector.id
+    } else {
+      // 3. Crear el sector en este nivel de la jerarquía
+      const color = getSectorColor(formattedName)
+      const desc = currentParentId
+        ? `Subsector institucional en ${parts.slice(0, i + 1).join(' > ')}`
+        : `Sector institucional creado desde Active Directory (${domain || 'AD'})`
+
+      const insertRes = await query(
+        `INSERT INTO sectors (name, description, color, parent_id)
+         VALUES (?, ?, ?, ?)`,
+        [formattedName, desc, color, currentParentId]
+      )
+
+      currentSectorId = insertRes.insertId
+      if (!currentSectorId) {
+        const { rows: fetchCreated } = await query(
+          currentParentId === null
+            ? `SELECT id FROM sectors WHERE parent_id IS NULL AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1`
+            : `SELECT id FROM sectors WHERE parent_id = ? AND LOWER(TRIM(name)) = LOWER(?) LIMIT 1`,
+          currentParentId === null ? [partName] : [currentParentId, partName]
+        )
+        currentSectorId = fetchCreated[0]?.id || null
+      }
+      currentParentId = currentSectorId
+      anySectorCreatedOrReparented = true
+      console.log(`✨ Sector auto-creado en jerarquía: "${formattedName}" (ID ${currentSectorId}, parent: ${currentParentId})`)
+    }
   }
 
-  // 3. Si no existe en la base de datos, crear el sector automáticamente
-  const formattedName = cleanDept.charAt(0).toUpperCase() + cleanDept.slice(1)
-  const color = getSectorColor(formattedName)
-
-  const res = await query(
-    `INSERT INTO sectors (name, description, color, parent_id)
-     VALUES (?, ?, ?, NULL)`,
-    [
-      formattedName,
-      `Sector institucional creado automáticamente desde Active Directory (${domain || 'AD'})`,
-      color,
-    ]
-  )
-
-  const newSectorId = res.insertId
-  if (newSectorId) {
-    console.log(`✨ Sector auto-creado desde Active Directory: "${formattedName}" (ID ${newSectorId})`)
-    return { sectorId: newSectorId, isNew: true }
-  }
-
-  const { rows: fallbackFetch } = await query(
-    `SELECT id FROM sectors WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1`,
-    [cleanDept]
-  )
-  return { sectorId: fallbackFetch[0]?.id || null, isNew: false }
+  return { sectorId: currentSectorId, isNew: anySectorCreatedOrReparented }
 }
 
 // POST /api/auth/windows-sso (Active Directory / Windows Single Sign-On)
@@ -213,8 +270,8 @@ authRouter.post('/windows-sso', async (req, res) => {
       let newDisplayName = user.display_name
       let newSectorId = user.sector_id
 
-      // Si el usuario no tenía sector asignado, vincularlo al sector obtenido/creado desde AD
-      if (!user.sector_id && targetSectorId) {
+      // Si el usuario no tenía sector asignado o su sector en AD difiere del guardado:
+      if (targetSectorId && (!user.sector_id || Number(user.sector_id) !== Number(targetSectorId))) {
         newSectorId = targetSectorId
         needsUserUpdate = true
       }
