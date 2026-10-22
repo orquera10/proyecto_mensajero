@@ -1,25 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import {
-  Smile,
-  Sticker,
-  Search,
-  X,
-  Send,
-  Plus,
-  Clock,
-  Briefcase,
-  ThumbsUp,
-  Heart,
-  Sparkles,
-  Layers,
-} from 'lucide-react'
+import { Search, X } from 'lucide-react'
 
 export interface EmojiPickerProps {
   isOpen: boolean
   onClose: () => void
   onSelectEmoji: (emoji: string) => void
-  onSendSticker?: (stickerText: string) => void
-  onInsertSticker?: (stickerText: string) => void
 }
 
 interface EmojiItem {
@@ -28,15 +13,15 @@ interface EmojiItem {
   category: 'frecuentes' | 'caritas' | 'gestos' | 'oficina' | 'simbolos' | 'celebracion'
 }
 
-interface StickerItem {
-  id: string
-  icon: string
-  title: string
-  subtitle: string
-  accentColor: string
-  fullText: string
-  category: 'respuestas' | 'tramites' | 'estado'
-}
+const CATEGORIES = [
+  { id: 'todos', label: 'Todos', icon: '✨' },
+  { id: 'frecuentes', label: 'Rápidos', icon: '⭐' },
+  { id: 'caritas', label: 'Caritas', icon: '😀' },
+  { id: 'gestos', label: 'Gestos', icon: '👍' },
+  { id: 'oficina', label: 'Oficina', icon: '💼' },
+  { id: 'simbolos', label: 'Símbolos', icon: '✅' },
+  { id: 'celebracion', label: 'Fiesta', icon: '🎉' },
+]
 
 const EMOJI_DATABASE: EmojiItem[] = [
   // Frecuentes / Rápidos
@@ -233,163 +218,17 @@ const EMOJI_DATABASE: EmojiItem[] = [
   { emoji: '🤍', name: 'corazon blanco paz sinceridad', category: 'celebracion' },
 ]
 
-const STICKERS_DATABASE: StickerItem[] = [
-  // Respuestas Rápidas Institucionales
-  {
-    id: 'st-recibido',
-    icon: '👍',
-    title: '¡Recibido y Enterado!',
-    subtitle: 'Mensaje leído y tomado en cuenta',
-    accentColor: 'from-blue-600/30 to-cyan-600/20 border-blue-500/40 text-blue-400 group-hover:border-blue-400',
-    fullText: '👍 ¡Recibido y enterado!',
-    category: 'respuestas',
-  },
-  {
-    id: 'st-aprobado',
-    icon: '✅',
-    title: 'Aprobado / Conforme',
-    subtitle: 'Proceder con la solicitud',
-    accentColor: 'from-emerald-600/30 to-teal-600/20 border-emerald-500/40 text-emerald-400 group-hover:border-emerald-400',
-    fullText: '✅ Aprobado / Conforme',
-    category: 'respuestas',
-  },
-  {
-    id: 'st-todo-orden',
-    icon: '🆗',
-    title: 'Todo en Orden',
-    subtitle: 'Sin observaciones pendientes',
-    accentColor: 'from-teal-600/30 to-emerald-600/20 border-teal-500/40 text-teal-300 group-hover:border-teal-400',
-    fullText: '🆗 Todo en orden, sin observaciones.',
-    category: 'respuestas',
-  },
-  {
-    id: 'st-muchas-gracias',
-    icon: '🙏',
-    title: '¡Muchas Gracias!',
-    subtitle: 'Agradecimiento por la gestión',
-    accentColor: 'from-indigo-600/30 to-violet-600/20 border-indigo-500/40 text-indigo-300 group-hover:border-indigo-400',
-    fullText: '🙏 ¡Muchas gracias por la gestión y colaboración!',
-    category: 'respuestas',
-  },
-  {
-    id: 'st-excelente-trabajo',
-    icon: '👏',
-    title: '¡Excelente Trabajo!',
-    subtitle: 'Felicitaciones por la tarea',
-    accentColor: 'from-amber-600/30 to-yellow-600/20 border-amber-500/40 text-amber-300 group-hover:border-amber-400',
-    fullText: '👏 ¡Excelente trabajo! Muy bien resuelto.',
-    category: 'respuestas',
-  },
-
-  // Estado de Trámites y Documentación
-  {
-    id: 'st-en-revision',
-    icon: '📋',
-    title: 'En Revisión Técnica',
-    subtitle: 'Analizando expediente o documentación',
-    accentColor: 'from-amber-600/30 to-orange-600/20 border-amber-500/40 text-amber-400 group-hover:border-amber-400',
-    fullText: '📋 En revisión técnica y análisis de documentación.',
-    category: 'tramites',
-  },
-  {
-    id: 'st-en-tramite',
-    icon: '⏳',
-    title: 'En Trámite',
-    subtitle: 'Gestión en curso, a la espera',
-    accentColor: 'from-purple-600/30 to-pink-600/20 border-purple-500/40 text-purple-300 group-hover:border-purple-400',
-    fullText: '⏳ En trámite. Gestión en curso actualmente.',
-    category: 'tramites',
-  },
-  {
-    id: 'st-expediente-listo',
-    icon: '📁',
-    title: 'Expediente / Nota Lista',
-    subtitle: 'Disponible para despacho o firma',
-    accentColor: 'from-sky-600/30 to-blue-600/20 border-sky-500/40 text-sky-400 group-hover:border-sky-400',
-    fullText: '📁 Expediente / Nota preparada y lista para despacho.',
-    category: 'tramites',
-  },
-  {
-    id: 'st-coordinado',
-    icon: '🤝',
-    title: 'Coordinado y Agendado',
-    subtitle: 'Pauta o reunión acordada',
-    accentColor: 'from-cyan-600/30 to-blue-600/20 border-cyan-500/40 text-cyan-300 group-hover:border-cyan-400',
-    fullText: '🤝 Coordinado y agendado conforme lo convenido.',
-    category: 'tramites',
-  },
-  {
-    id: 'st-urgente',
-    icon: '🚨',
-    title: 'Prioridad Alta / Urgente',
-    subtitle: 'Requiere atención inmediata',
-    accentColor: 'from-rose-600/30 to-red-600/20 border-rose-500/40 text-rose-400 group-hover:border-rose-400',
-    fullText: '🚨 [URGENTE] Prioridad alta. Requiere atención inmediata.',
-    category: 'tramites',
-  },
-  {
-    id: 'st-confidencial',
-    icon: '🔒',
-    title: 'Asunto Reservado',
-    subtitle: 'Tratamiento confidencial del sector',
-    accentColor: 'from-slate-600/30 to-zinc-600/20 border-slate-500/40 text-slate-300 group-hover:border-slate-400',
-    fullText: '🔒 Asunto Reservado / Tratamiento confidencial del sector.',
-    category: 'tramites',
-  },
-  {
-    id: 'st-propuesta',
-    icon: '💡',
-    title: 'Propuesta / Consulta',
-    subtitle: 'Para evaluar en el equipo',
-    accentColor: 'from-yellow-500/30 to-amber-500/20 border-yellow-400/40 text-yellow-300 group-hover:border-yellow-400',
-    fullText: '💡 Propuesta / Consulta para evaluación del equipo.',
-    category: 'tramites',
-  },
-
-  // Disponibilidad y Estado del Usuario
-  {
-    id: 'st-pausa',
-    icon: '☕',
-    title: 'En Pausa Breve',
-    subtitle: 'Vuelvo en unos minutos',
-    accentColor: 'from-amber-700/30 to-orange-700/20 border-amber-600/40 text-amber-200 group-hover:border-amber-400',
-    fullText: '☕ En pausa breve. Vuelvo a estar disponible en unos minutos.',
-    category: 'estado',
-  },
-  {
-    id: 'st-llamada',
-    icon: '📞',
-    title: 'Te llamo en un momento',
-    subtitle: 'En comunicación o audiencia',
-    accentColor: 'from-blue-600/30 to-indigo-600/20 border-blue-500/40 text-blue-300 group-hover:border-blue-400',
-    fullText: '📞 Estoy atendiendo una comunicación. Te llamo en breve.',
-    category: 'estado',
-  },
-  {
-    id: 'st-ocupado-tarea',
-    icon: '💻',
-    title: 'Trabajando en esto',
-    subtitle: 'Avanzando con el requerimiento',
-    accentColor: 'from-emerald-600/30 to-teal-600/20 border-emerald-500/40 text-emerald-300 group-hover:border-emerald-400',
-    fullText: '💻 Estoy trabajando en tu pedido en este momento.',
-    category: 'estado',
-  },
-]
-
 export const EmojiPicker: React.FC<EmojiPickerProps> = ({
   isOpen,
   onClose,
   onSelectEmoji,
-  onSendSticker,
-  onInsertSticker,
 }) => {
-  const [activeTab, setActiveTab] = useState<'emojis' | 'stickers'>('emojis')
   const [selectedCategory, setSelectedCategory] = useState<string>('todos')
   const [searchQuery, setSearchQuery] = useState('')
   const pickerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Cerrar al hacer click afuera
+  // Cerrar al hacer click afuera o con Escape
   useEffect(() => {
     if (!isOpen) return
 
@@ -416,6 +255,18 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
     }
   }, [isOpen, onClose])
 
+  // Foco en el buscador al abrir
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 50)
+    } else {
+      setSearchQuery('')
+      setSelectedCategory('todos')
+    }
+  }, [isOpen])
+
   // Filtrado de emojis
   const filteredEmojis = useMemo(() => {
     const q = searchQuery.toLowerCase().trim()
@@ -428,287 +279,102 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
     })
   }, [searchQuery, selectedCategory])
 
-  // Filtrado de stickers
-  const filteredStickers = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim()
-    if (!q) return STICKERS_DATABASE
-    return STICKERS_DATABASE.filter(
-      (s) =>
-        s.title.toLowerCase().includes(q) ||
-        s.subtitle.toLowerCase().includes(q) ||
-        s.fullText.toLowerCase().includes(q)
-    )
-  }, [searchQuery])
-
   if (!isOpen) return null
 
   return (
     <div
       ref={pickerRef}
-      className="absolute bottom-full mb-3 left-0 sm:left-2 w-[calc(100vw-1.5rem)] sm:w-[380px] max-w-[420px] rounded-2xl border border-slate-700/80 bg-slate-900/95 backdrop-blur-xl shadow-2xl shadow-black/80 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 select-none text-slate-100"
+      className="absolute bottom-full mb-3 left-2 sm:left-4 w-[calc(100vw-1.5rem)] sm:w-[380px] max-w-[420px] rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 select-none text-slate-100"
       style={{ maxHeight: '420px' }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Header Tabs */}
-      <div className="flex items-center justify-between px-3 pt-2.5 pb-2 border-b border-slate-800 bg-slate-950/60">
-        <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-900 border border-slate-800">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('emojis')
-              setSelectedCategory('todos')
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-              activeTab === 'emojis'
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Smile className="h-3.5 w-3.5" />
-            <span>Emojis</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('stickers')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-              activeTab === 'stickers'
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Sticker className="h-3.5 w-3.5" />
-            <span>Stickers</span>
-            <span className="px-1 py-0.2 text-[9px] rounded-full bg-blue-400/20 text-blue-300">
-              Pro
-            </span>
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          title="Cerrar (Esc)"
-          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Search Input */}
-      <div className="p-2 border-b border-slate-800/80 bg-slate-900/50">
-        <div className="relative flex items-center">
+      {/* Header con Buscador y Botón Cerrar */}
+      <div className="p-2.5 border-b border-slate-800 bg-slate-950 flex items-center gap-2">
+        <div className="relative flex-1 flex items-center">
           <Search className="absolute left-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
           <input
             ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={
-              activeTab === 'emojis'
-                ? 'Buscar emoji (ej: pulgar, check, sonrisa)...'
-                : 'Buscar sticker institucional...'
-            }
-            className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl bg-slate-950/80 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+            placeholder="Buscar emoji (ej: pulgar, check, sonrisa)..."
+            className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl bg-slate-900 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 text-slate-400 hover:text-slate-200"
+              className="absolute right-2 text-slate-400 hover:text-slate-200 cursor-pointer"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          title="Cerrar (Esc)"
+          className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Category Pills (Only for Emojis) */}
-      {activeTab === 'emojis' && (
-        <div className="flex items-center gap-1 px-2.5 py-1.5 border-b border-slate-800/60 overflow-x-auto no-scrollbar text-[11px]">
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('todos')}
-            className={`px-2 py-0.5 rounded-full whitespace-nowrap transition cursor-pointer ${
-              selectedCategory === 'todos'
-                ? 'bg-slate-700 text-white font-medium'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Todos
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('frecuentes')}
-            className={`px-2 py-0.5 rounded-full whitespace-nowrap transition cursor-pointer ${
-              selectedCategory === 'frecuentes'
-                ? 'bg-slate-700 text-white font-medium'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Frecuentes
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('caritas')}
-            className={`px-2 py-0.5 rounded-full whitespace-nowrap transition cursor-pointer ${
-              selectedCategory === 'caritas'
-                ? 'bg-slate-700 text-white font-medium'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Caritas
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('gestos')}
-            className={`px-2 py-0.5 rounded-full whitespace-nowrap transition cursor-pointer ${
-              selectedCategory === 'gestos'
-                ? 'bg-slate-700 text-white font-medium'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Gestos
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('oficina')}
-            className={`px-2 py-0.5 rounded-full whitespace-nowrap transition cursor-pointer ${
-              selectedCategory === 'oficina'
-                ? 'bg-slate-700 text-white font-medium'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Oficina
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('simbolos')}
-            className={`px-2 py-0.5 rounded-full whitespace-nowrap transition cursor-pointer ${
-              selectedCategory === 'simbolos'
-                ? 'bg-slate-700 text-white font-medium'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Símbolos
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('celebracion')}
-            className={`px-2 py-0.5 rounded-full whitespace-nowrap transition cursor-pointer ${
-              selectedCategory === 'celebracion'
-                ? 'bg-slate-700 text-white font-medium'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Celebración
-          </button>
-        </div>
-      )}
+      {/* Barra de Categorías en Grid fijo (Sin barra de scroll horizontal) */}
+      <div className="grid grid-cols-7 gap-1 px-2 py-1.5 border-b border-slate-800 bg-slate-950/80">
+        {CATEGORIES.map((cat) => {
+          const isSelected = selectedCategory === cat.id
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => {
+                setSelectedCategory(cat.id)
+                setSearchQuery('')
+              }}
+              title={cat.label}
+              className={`flex flex-col items-center justify-center py-1 px-0.5 rounded-lg transition cursor-pointer border ${
+                isSelected
+                  ? 'bg-blue-600/25 border-blue-500/50 text-blue-400 font-medium'
+                  : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <span className="text-sm leading-none">{cat.icon}</span>
+              <span className="text-[10px] leading-tight truncate mt-0.5 max-w-full">
+                {cat.label}
+              </span>
+            </button>
+          )
+        })}
+      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-2.5 custom-scrollbar min-h-[220px]">
-        {activeTab === 'emojis' ? (
-          <div>
-            {filteredEmojis.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500">
-                No se encontraron emojis para "{searchQuery}"
-              </div>
-            ) : (
-              <div className="grid grid-cols-7 sm:grid-cols-8 gap-1.5">
-                {filteredEmojis.map((item, idx) => (
-                  <button
-                    key={`${item.emoji}-${idx}`}
-                    type="button"
-                    onClick={() => onSelectEmoji(item.emoji)}
-                    title={item.name}
-                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-xl sm:text-2xl hover:bg-slate-800/80 active:scale-90 transition cursor-pointer hover:shadow-inner"
-                  >
-                    <span>{item.emoji}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+      {/* Grilla de Emojis */}
+      <div className="flex-1 overflow-y-auto p-2.5 min-h-[220px] custom-scrollbar bg-slate-900">
+        {filteredEmojis.length === 0 ? (
+          <div className="py-12 text-center text-xs text-slate-500">
+            No se encontraron emojis para "{searchQuery}"
           </div>
         ) : (
-          /* Tab de Stickers */
-          <div className="space-y-2">
-            <div className="flex items-center justify-between pb-1 text-[11px] text-slate-400">
-              <span>Respuestas institucionales rápidas</span>
-              <span className="text-[10px] text-blue-400">Clic para enviar directo</span>
-            </div>
-
-            {filteredStickers.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-500">
-                No se encontraron stickers para "{searchQuery}"
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-2">
-                {filteredStickers.map((st) => (
-                  <div
-                    key={st.id}
-                    className={`group relative flex items-center justify-between p-2.5 rounded-xl border bg-gradient-to-r ${st.accentColor} transition-all duration-150 hover:shadow-md cursor-pointer`}
-                    onClick={() => {
-                      if (onSendSticker) {
-                        onSendSticker(st.fullText)
-                      } else if (onInsertSticker) {
-                        onInsertSticker(st.fullText)
-                      }
-                      onClose()
-                    }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-2xl drop-shadow">{st.icon}</span>
-                      <div className="text-left">
-                        <div className="text-xs font-semibold text-white tracking-wide">
-                          {st.title}
-                        </div>
-                        <div className="text-[10px] text-slate-300/80 line-clamp-1">
-                          {st.subtitle}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
-                      {/* Botón para solo insertar en el textarea sin enviar directo */}
-                      {onInsertSticker && (
-                        <button
-                          type="button"
-                          title="Insertar en texto sin enviar"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onInsertSticker(st.fullText)
-                            onClose()
-                          }}
-                          className="p-1 rounded-lg bg-slate-950/60 hover:bg-slate-800 text-slate-300 hover:text-white transition cursor-pointer"
-                        >
-                          <Plus className="h-3 w-3" />
-                        </button>
-                      )}
-
-                      {/* Botón enviar directo */}
-                      <div
-                        title="Enviar directamente"
-                        className="p-1 rounded-lg bg-blue-600/80 hover:bg-blue-600 text-white transition cursor-pointer"
-                      >
-                        <Send className="h-3 w-3" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="grid grid-cols-7 sm:grid-cols-8 gap-1.5">
+            {filteredEmojis.map((item, idx) => (
+              <button
+                key={`${item.emoji}-${idx}`}
+                type="button"
+                onClick={() => onSelectEmoji(item.emoji)}
+                title={item.name}
+                className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-xl sm:text-2xl hover:bg-slate-800 active:scale-90 transition cursor-pointer"
+              >
+                <span>{item.emoji}</span>
+              </button>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Footer info */}
-      <div className="px-3 py-1.5 border-t border-slate-800/80 bg-slate-950/70 text-[10px] text-slate-500 flex items-center justify-between">
-        <span>
-          {activeTab === 'emojis'
-            ? `${filteredEmojis.length} emojis disponibles`
-            : `${filteredStickers.length} stickers institucionales`}
-        </span>
+      {/* Footer */}
+      <div className="px-3 py-1.5 border-t border-slate-800 bg-slate-950 text-[10px] text-slate-500 flex items-center justify-between">
+        <span>{filteredEmojis.length} emojis disponibles</span>
         <span className="text-slate-400">Esc para cerrar</span>
       </div>
     </div>

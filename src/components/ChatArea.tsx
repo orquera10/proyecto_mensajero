@@ -217,12 +217,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     })
   }
 
-  const handleSendSticker = (stickerText: string) => {
-    if (!activeUser && !isBroadcast) return
-    if (isBroadcast && !canPublishBroadcast) return
-    onSendMessage(stickerText)
-  }
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -700,13 +694,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
         ) : (
           <>
-            {/* Popover Emoji & Sticker Picker */}
+            {/* Popover Emoji Picker */}
             <EmojiPicker
               isOpen={isEmojiPickerOpen}
               onClose={() => setIsEmojiPickerOpen(false)}
               onSelectEmoji={handleInsertEmoji}
-              onSendSticker={handleSendSticker}
-              onInsertSticker={handleInsertEmoji}
             />
 
             <form onSubmit={handleSend} className="flex items-end gap-2">
@@ -733,11 +725,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 )}
               </button>
 
-              {/* Emoji & Sticker Button */}
+              {/* Emoji Button */}
               <button
                 type="button"
                 onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
-                title="Emojis y stickers institucionales"
+                title="Emojis"
                 className={`flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full border transition active:scale-95 cursor-pointer ${
                   isEmojiPickerOpen
                     ? 'border-blue-500 bg-blue-600/20 text-blue-400 ring-2 ring-blue-500/30'
