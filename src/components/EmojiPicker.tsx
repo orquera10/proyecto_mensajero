@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { Search, X } from 'lucide-react'
+import { Search, X, Clock } from 'lucide-react'
 
 export interface EmojiPickerProps {
   isOpen: boolean
@@ -13,9 +13,15 @@ interface EmojiItem {
   category: 'frecuentes' | 'caritas' | 'gestos' | 'oficina' | 'simbolos' | 'celebracion'
 }
 
+const RECENT_KEY = 'mensajero_recent_emojis'
+const DEFAULT_FREQUENT_EMOJIS = [
+  '👍', '👏', '✅', '🙏', '👌', '😊', '😂', '🤝',
+  '📋', '⏳', '🚨', '📁', '☕', '❤️', '🎯', '💡',
+]
+
 const CATEGORIES = [
   { id: 'todos', label: 'Todos', icon: '✨' },
-  { id: 'frecuentes', label: 'Rápidos', icon: '⭐' },
+  { id: 'frecuentes', label: 'Usados', icon: '🕒' },
   { id: 'caritas', label: 'Caritas', icon: '😀' },
   { id: 'gestos', label: 'Gestos', icon: '👍' },
   { id: 'oficina', label: 'Oficina', icon: '💼' },
@@ -225,8 +231,36 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('todos')
   const [searchQuery, setSearchQuery] = useState('')
+  const [recentEmojis, setRecentEmojis] = useState<string[]>(DEFAULT_FREQUENT_EMOJIS)
   const pickerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Cargar emojis más usados guardados en localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(RECENT_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRecentEmojis(parsed)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  // Registrar emoji usado y llamar onSelectEmoji
+  const handleEmojiClick = (emoji: string) => {
+    try {
+      const updated = [emoji, ...recentEmojis.filter((e) => e !== emoji)].slice(0, 24)
+      setRecentEmojis(updated)
+      localStorage.setItem(RECENT_KEY, JSON.stringify(updated))
+    } catch {
+      // ignore
+    }
+    onSelectEmoji(emoji)
+  }
 
   // Cerrar al hacer click afuera o con Escape
   useEffect(() => {
@@ -272,12 +306,13 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
     const q = searchQuery.toLowerCase().trim()
     return EMOJI_DATABASE.filter((item) => {
       const matchesCategory =
-        selectedCategory === 'todos' || item.category === selectedCategory
+        selectedCategory === 'todos' ||
+        (selectedCategory === 'frecuentes' ? recentEmojis.includes(item.emoji) : item.category === selectedCategory)
       const matchesSearch =
         !q || item.emoji.includes(q) || item.name.toLowerCase().includes(q)
       return matchesCategory && matchesSearch
     })
-  }, [searchQuery, selectedCategory])
+  }, [searchQuery, selectedCategory, recentEmojis])
 
   if (!isOpen) return null
 
@@ -285,7 +320,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
     <div
       ref={pickerRef}
       className="absolute bottom-full mb-3 left-2 sm:left-4 w-[calc(100vw-1.5rem)] sm:w-[380px] max-w-[420px] rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 select-none text-slate-100"
-      style={{ maxHeight: '420px' }}
+      style={{ maxHeight: '430px' }}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header con Buscador y Botón Cerrar */}
@@ -321,7 +356,7 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
         </button>
       </div>
 
-      {/* Barra de Categorías en Grid fijo (Sin barra de scroll horizontal) */}
+      {/* Barra de Categorías en Grid fijo de 7 columnas */}
       <div className="grid grid-cols-7 gap-1 px-2 py-1.5 border-b border-slate-800 bg-slate-950/80">
         {CATEGORIES.map((cat) => {
           const isSelected = selectedCategory === cat.id
@@ -349,32 +384,94 @@ export const EmojiPicker: React.FC<EmojiPickerProps> = ({
         })}
       </div>
 
-      {/* Grilla de Emojis */}
+      {/* Área Principal de Emojis */}
       <div className="flex-1 overflow-y-auto p-2.5 min-h-[220px] custom-scrollbar bg-slate-900">
-        {filteredEmojis.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-500">
-            No se encontraron emojis para "{searchQuery}"
+        {/* Sección "Más Usados" en la vista Todos (sin búsqueda activa) */}
+        {selectedCategory === 'todos' && !searchQuery && recentEmojis.length > 0 && (
+          <div className="mb-3">
+            <div className="flex items-center gap-1.5 px-1 mb-1.5 text-[11px] font-semibold text-slate-400">
+              <Clock className="h-3.5 w-3.5 text-blue-400" />
+              <span>Más usados recientemente</span>
+            </div>
+            <div className="grid grid-cols-7 sm:grid-cols-8 gap-1.5 p-1.5 rounded-xl bg-slate-950/60 border border-slate-800/80 mb-2.5">
+              {recentEmojis.slice(0, 14).map((emoji, idx) => {
+                const item = EMOJI_DATABASE.find((e) => e.emoji === emoji)
+                return (
+                  <button
+                    key={`recent-${emoji}-${idx}`}
+                    type="button"
+                    onClick={() => handleEmojiClick(emoji)}
+                    title={item?.name || emoji}
+                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-xl sm:text-2xl hover:bg-slate-800 active:scale-90 transition cursor-pointer"
+                  >
+                    <span>{emoji}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="px-1 mb-1.5 text-[11px] font-semibold text-slate-400">
+              Todos los emojis
+            </div>
+          </div>
+        )}
+
+        {/* Sección "Usados" específica (Pestaña 🕒) */}
+        {selectedCategory === 'frecuentes' && !searchQuery ? (
+          <div>
+            <div className="flex items-center gap-1.5 px-1 mb-2 text-xs font-semibold text-slate-300">
+              <Clock className="h-3.5 w-3.5 text-blue-400" />
+              <span>Tus emojis más usados ({recentEmojis.length})</span>
+            </div>
+            <div className="grid grid-cols-7 sm:grid-cols-8 gap-1.5">
+              {recentEmojis.map((emoji, idx) => {
+                const item = EMOJI_DATABASE.find((e) => e.emoji === emoji)
+                return (
+                  <button
+                    key={`freq-tab-${emoji}-${idx}`}
+                    type="button"
+                    onClick={() => handleEmojiClick(emoji)}
+                    title={item?.name || emoji}
+                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-xl sm:text-2xl hover:bg-slate-800 active:scale-90 transition cursor-pointer"
+                  >
+                    <span>{emoji}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-7 sm:grid-cols-8 gap-1.5">
-            {filteredEmojis.map((item, idx) => (
-              <button
-                key={`${item.emoji}-${idx}`}
-                type="button"
-                onClick={() => onSelectEmoji(item.emoji)}
-                title={item.name}
-                className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-xl sm:text-2xl hover:bg-slate-800 active:scale-90 transition cursor-pointer"
-              >
-                <span>{item.emoji}</span>
-              </button>
-            ))}
+          /* Grilla general filtrada */
+          <div>
+            {filteredEmojis.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-500">
+                No se encontraron emojis para "{searchQuery}"
+              </div>
+            ) : (
+              <div className="grid grid-cols-7 sm:grid-cols-8 gap-1.5">
+                {filteredEmojis.map((item, idx) => (
+                  <button
+                    key={`${item.emoji}-${idx}`}
+                    type="button"
+                    onClick={() => handleEmojiClick(item.emoji)}
+                    title={item.name}
+                    className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl text-xl sm:text-2xl hover:bg-slate-800 active:scale-90 transition cursor-pointer"
+                  >
+                    <span>{item.emoji}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Footer */}
       <div className="px-3 py-1.5 border-t border-slate-800 bg-slate-950 text-[10px] text-slate-500 flex items-center justify-between">
-        <span>{filteredEmojis.length} emojis disponibles</span>
+        <span>
+          {selectedCategory === 'frecuentes' && !searchQuery
+            ? `${recentEmojis.length} emojis más usados`
+            : `${filteredEmojis.length} emojis disponibles`}
+        </span>
         <span className="text-slate-400">Esc para cerrar</span>
       </div>
     </div>
