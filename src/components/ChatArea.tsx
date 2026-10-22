@@ -14,10 +14,12 @@ import {
   ArrowLeft,
   Lock,
   Megaphone,
+  Smile,
 } from 'lucide-react'
 import type { User, Message, PresenceStatus } from '../types'
 import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
 import { formatSectorName } from '../utils/formatters'
+import { EmojiPicker } from './EmojiPicker'
 
 interface ChatAreaProps {
   activeUser: User | null
@@ -96,8 +98,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [inputText, setInputText] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
   const dragCounter = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
@@ -124,6 +128,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (typeof window !== 'undefined' && (window.scrollX !== 0 || window.scrollY !== 0)) {
       window.scrollTo(0, 0)
     }
+    setIsEmojiPickerOpen(false)
   }, [activeUser?.id, isBroadcast])
 
   useEffect(() => {
@@ -191,6 +196,31 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         onTyping()
       }
     }
+  }
+
+  const handleInsertEmoji = (emoji: string) => {
+    const textarea = textareaRef.current
+    if (!textarea) {
+      setInputText((prev) => prev + emoji)
+      return
+    }
+
+    const start = textarea.selectionStart ?? inputText.length
+    const end = textarea.selectionEnd ?? inputText.length
+    const newText = inputText.substring(0, start) + emoji + inputText.substring(end)
+    setInputText(newText)
+
+    requestAnimationFrame(() => {
+      textarea.focus()
+      const newCursor = start + emoji.length
+      textarea.setSelectionRange(newCursor, newCursor)
+    })
+  }
+
+  const handleSendSticker = (stickerText: string) => {
+    if (!activeUser && !isBroadcast) return
+    if (isBroadcast && !canPublishBroadcast) return
+    onSendMessage(stickerText)
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -660,7 +690,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       </div>
 
       {/* Message Input Box or Read-Only Notice */}
-      <div className="shrink-0 p-2.5 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-900/60 backdrop-blur-md">
+      <div className="shrink-0 p-2.5 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-900/60 backdrop-blur-md relative">
         {isBroadcast && !canPublishBroadcast ? (
           <div className="flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-2xl border border-slate-800 bg-slate-950/70 text-xs text-slate-400">
             <Lock className="h-4 w-4 text-amber-400/90 shrink-0" />
@@ -669,52 +699,77 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </span>
           </div>
         ) : (
-          <form onSubmit={handleSend} className="flex items-end gap-2">
-            {/* Hidden File Picker */}
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              className="hidden"
+          <>
+            {/* Popover Emoji & Sticker Picker */}
+            <EmojiPicker
+              isOpen={isEmojiPickerOpen}
+              onClose={() => setIsEmojiPickerOpen(false)}
+              onSelectEmoji={handleInsertEmoji}
+              onSendSticker={handleSendSticker}
+              onInsertSticker={handleInsertEmoji}
             />
 
-            {/* Attachment Button */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              title={isBroadcast ? 'Adjuntar documento o imagen al comunicado' : 'Adjuntar archivo o imagen'}
-              className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white active:scale-95 transition cursor-pointer"
-            >
-              {isUploading ? (
-                <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
-              ) : (
-                <Paperclip className="h-4 w-4" />
-              )}
-            </button>
-
-            {/* Textarea container */}
-            <div
-              className={`flex-1 rounded-2xl border transition-all ${
-                isDragging
-                  ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
-                  : 'border-slate-800 bg-slate-950/80 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/20'
-              } px-3.5 py-2`}
-            >
-              <textarea
-                rows={1}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder={
-                  isBroadcast
-                    ? 'Escribir comunicado institucional para toda la empresa... (Enter para publicar)'
-                    : 'Mensaje... (Enter para enviar)'
-                }
-                className="w-full resize-none bg-transparent text-sm sm:text-xs text-white placeholder-slate-500 focus:outline-none max-h-32"
+            <form onSubmit={handleSend} className="flex items-end gap-2">
+              {/* Hidden File Picker */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
               />
-            </div>
+
+              {/* Attachment Button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                title={isBroadcast ? 'Adjuntar documento o imagen al comunicado' : 'Adjuntar archivo o imagen'}
+                className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white active:scale-95 transition cursor-pointer"
+              >
+                {isUploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                ) : (
+                  <Paperclip className="h-4 w-4" />
+                )}
+              </button>
+
+              {/* Emoji & Sticker Button */}
+              <button
+                type="button"
+                onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
+                title="Emojis y stickers institucionales"
+                className={`flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full border transition active:scale-95 cursor-pointer ${
+                  isEmojiPickerOpen
+                    ? 'border-blue-500 bg-blue-600/20 text-blue-400 ring-2 ring-blue-500/30'
+                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Smile className="h-4 w-4" />
+              </button>
+
+              {/* Textarea container */}
+              <div
+                className={`flex-1 rounded-2xl border transition-all ${
+                  isDragging
+                    ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500/30'
+                    : 'border-slate-800 bg-slate-950/80 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/20'
+                } px-3.5 py-2`}
+              >
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  placeholder={
+                    isBroadcast
+                      ? 'Escribir comunicado institucional para toda la empresa... (Enter para publicar)'
+                      : 'Mensaje... (Enter para enviar)'
+                  }
+                  className="w-full resize-none bg-transparent text-sm sm:text-xs text-white placeholder-slate-500 focus:outline-none max-h-32"
+                />
+              </div>
 
             {/* Send / Publish Button */}
             <button
@@ -730,6 +785,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               {isBroadcast ? <Megaphone className="h-4 w-4" /> : <Send className="h-4 w-4" />}
             </button>
           </form>
+          </>
         )}
       </div>
     </div>
