@@ -217,6 +217,40 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     })
   }
 
+  const handleDownloadFile = async (fileUrl: string, fileName?: string) => {
+    const downloadName = fileName || 'archivo_adjunto'
+    const cleanUrl = fileUrl.startsWith('http') ? fileUrl : `${serverUrl}${fileUrl}`
+    const separator = cleanUrl.includes('?') ? '&' : '?'
+    const downloadUrl = `${cleanUrl}${separator}name=${encodeURIComponent(downloadName)}&download=1`
+
+    try {
+      // 1. Intentar descarga mediante fetch + blob: crea una URL blob local (same-origin)
+      // que garantiza que el navegador use EXACTAMENTE el atributo download con el nombre original
+      const response = await fetch(downloadUrl)
+      if (!response.ok) throw new Error('Error al descargar archivo')
+
+      const blob = await response.blob()
+      const blobUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = downloadName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1500)
+    } catch {
+      // 2. Fallback de navegación directa con cabecera Content-Disposition del servidor
+      const fallbackLink = document.createElement('a')
+      fallbackLink.href = downloadUrl
+      fallbackLink.target = '_blank'
+      fallbackLink.rel = 'noreferrer'
+      fallbackLink.download = downloadName
+      document.body.appendChild(fallbackLink)
+      fallbackLink.click()
+      document.body.removeChild(fallbackLink)
+    }
+  }
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -600,23 +634,36 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
                   {/* Image Attachment */}
                   {msg.message_type === 'image' && msg.file_url && (
-                    <div className="mt-2 overflow-hidden rounded-xl border border-white/10">
+                    <div className="group relative mt-2 overflow-hidden rounded-xl border border-white/10">
                       <img
                         src={`${serverUrl}${msg.file_url}`}
                         alt={msg.file_name || 'Imagen adjunta'}
-                        className="max-h-64 w-full object-cover"
+                        className="max-h-64 w-full object-cover cursor-pointer hover:brightness-95 transition"
                         loading="lazy"
+                        onClick={() => window.open(`${serverUrl}${msg.file_url}`, '_blank')}
                       />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDownloadFile(msg.file_url!, msg.file_name || 'imagen.png')
+                        }}
+                        title={`Descargar ${msg.file_name || 'imagen'}`}
+                        className="absolute top-2 right-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/85 hover:bg-slate-950 text-white text-[11px] font-medium backdrop-blur-md opacity-0 group-hover:opacity-100 transition shadow-lg border border-white/15 cursor-pointer"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Descargar</span>
+                      </button>
                     </div>
                   )}
 
                   {/* File / Document Attachment */}
                   {msg.message_type === 'file' && msg.file_url && (
-                    <a
-                      href={`${serverUrl}${msg.file_url}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className={`mt-2 flex items-center gap-3 rounded-xl p-2.5 transition ${
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFile(msg.file_url!, msg.file_name || 'archivo')}
+                      title={`Descargar ${msg.file_name || 'archivo'}`}
+                      className={`mt-2 flex w-full text-left items-center gap-3 rounded-xl p-2.5 transition cursor-pointer ${
                         isMine ? 'bg-blue-700/60 hover:bg-blue-700' : 'bg-slate-800/80 hover:bg-slate-800'
                       }`}
                     >
@@ -628,7 +675,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         <p className="text-[10px] opacity-75">{formatBytes(msg.file_size)}</p>
                       </div>
                       <Download className="h-4 w-4 shrink-0 opacity-80" />
-                    </a>
+                    </button>
                   )}
                   
                   {/* Timestamp & Read Status */}

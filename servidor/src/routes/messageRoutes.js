@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
+import { config } from '../config.js'
 import { query } from '../db.js'
 import { authenticateToken } from '../auth.js'
 import { upload } from '../upload.js'
@@ -220,12 +222,23 @@ messageRouter.post('/upload', authenticateToken, upload.single('file'), async (r
       return res.status(400).json({ error: 'No se ha subido ningún archivo' })
     }
 
+    let originalName = req.file.originalname
+    try {
+      // Corregir codificación si multer interpretó UTF-8 como latin1
+      const converted = Buffer.from(originalName, 'latin1').toString('utf8')
+      if (!converted.includes('')) {
+        originalName = converted
+      }
+    } catch {
+      // mantener originalName
+    }
+
     const fileUrl = `/uploads/${req.file.filename}`
     const isImage = req.file.mimetype.startsWith('image/')
 
     res.json({
       file_url: fileUrl,
-      file_name: req.file.originalname,
+      file_name: originalName,
       file_size: req.file.size,
       file_mime: req.file.mimetype,
       message_type: isImage ? 'image' : 'file',
@@ -233,6 +246,38 @@ messageRouter.post('/upload', authenticateToken, upload.single('file'), async (r
   } catch (err) {
     console.error('Error uploading file:', err)
     res.status(500).json({ error: 'Error al procesar el archivo adjunto' })
+  }
+})
+
+// GET /api/messages/download - Descargar archivo adjunto con su nombre original
+messageRouter.get('/download', async (req, res) => {
+  try {
+    const fileUrl = req.query.url ? String(req.query.url).trim() : null
+    const originalName = req.query.name ? String(req.query.name).trim() : null
+
+    if (!fileUrl) {
+      return res.status(400).json({ error: 'Falta el parámetro url' })
+    }
+
+    const safeFilename = path.basename(fileUrl)
+    const filePath = path.join(config.uploadDir, safeFilename)
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Archivo no encontrado' })
+    }
+
+    const downloadName = originalName || safeFilename
+    const asciiFallback = downloadName.replace(/[^\w.-]/g, '_')
+    const encodedName = encodeURIComponent(downloadName)
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedName}`
+    )
+    res.sendFile(filePath)
+  } catch (err) {
+    console.error('Error al descargar archivo:', err)
+    res.status(500).json({ error: 'Error al descargar archivo' })
   }
 })
 

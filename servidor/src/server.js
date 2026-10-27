@@ -38,6 +38,33 @@ app.set('io', io)
 app.use(cors())
 app.use(express.json())
 
+// Middleware para descargas desde /uploads con soporte de nombre original (?name=... y ?download=1)
+app.get('/uploads/:filename', (req, res, next) => {
+  const customName = req.query.name ? String(req.query.name).trim() : null
+  const forceDownload = req.query.download === '1' || req.query.download === 'true'
+
+  if (customName || forceDownload) {
+    const safeFilename = path.basename(req.params.filename)
+    const filePath = path.join(config.uploadDir, safeFilename)
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).send('Archivo no encontrado')
+    }
+
+    const downloadName = customName || safeFilename
+    const asciiFallback = downloadName.replace(/[^\w.-]/g, '_')
+    const encodedName = encodeURIComponent(downloadName)
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedName}`
+    )
+    return res.sendFile(filePath)
+  }
+
+  next()
+})
+
 // Serve Static Uploaded Files
 app.use('/uploads', express.static(config.uploadDir))
 

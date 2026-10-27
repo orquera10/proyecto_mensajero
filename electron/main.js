@@ -117,6 +117,21 @@ function createWindow() {
     win?.flashFrame(false)
   })
 
+  // Configurar sesión de descargas para sugerir y respetar el nombre original del archivo
+  win.webContents.session.on('will-download', (_event, item) => {
+    try {
+      const itemUrl = item.getURL()
+      const parsed = new URL(itemUrl)
+      const nameParam = parsed.searchParams.get('name')
+      const targetName = nameParam ? decodeURIComponent(nameParam) : item.getFilename()
+      if (targetName) {
+        item.setSaveDialogOptions({ defaultPath: targetName })
+      }
+    } catch {
+      // ignore
+    }
+  })
+
   const indexPath = path.join(RENDERER_DIST, 'index.html')
   win.loadFile(indexPath)
 
