@@ -712,28 +712,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     )
   }
 
-  // Soporte para botón "Atrás" en móviles cuando el visor multimedia está abierto
-  useEffect(() => {
-    if (mediaViewer.isOpen) {
-      window.history.pushState({ view: 'mediaViewer' }, '')
-      const handleMediaPopState = () => {
-        setMediaViewer((prev) => ({ ...prev, isOpen: false }))
-      }
-      window.addEventListener('popstate', handleMediaPopState)
-      return () => {
-        window.removeEventListener('popstate', handleMediaPopState)
-      }
-    }
-  }, [mediaViewer.isOpen])
-
-  const handleCloseMediaViewer = () => {
-    if (window.history.state?.view === 'mediaViewer') {
-      window.history.back()
-    } else {
-      setMediaViewer((prev) => ({ ...prev, isOpen: false }))
-    }
-  }
-
   return (
     <div
       onDragEnter={handleDragEnter}
@@ -1805,7 +1783,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         url={mediaViewer.url}
         title={mediaViewer.title}
         fileSize={mediaViewer.fileSize}
-        onClose={handleCloseMediaViewer}
+        onClose={() => setMediaViewer((prev) => ({ ...prev, isOpen: false }))}
         onDownload={handleDownloadFile}
       />
     </div>

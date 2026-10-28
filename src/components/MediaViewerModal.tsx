@@ -87,6 +87,28 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, type, onClose])
 
+  // Soporte para botón Atrás en móviles al estar el visor abierto
+  useEffect(() => {
+    if (!isOpen) return
+
+    window.history.pushState({ view: 'mediaViewer' }, '')
+    const handlePopState = () => {
+      onClose()
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [isOpen, onClose])
+
+  const handleClose = () => {
+    if (window.history.state?.view === 'mediaViewer') {
+      window.history.back()
+    } else {
+      onClose()
+    }
+  }
+
   // Wheel zoom
   const handleWheel = (e: React.WheelEvent) => {
     if (type !== 'image') return
@@ -200,7 +222,7 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md sm:p-4 select-none animate-in fade-in duration-200">
       {/* Backdrop click to close (desktop only) */}
-      <div className="hidden sm:block absolute inset-0" onClick={onClose} />
+      <div className="hidden sm:block absolute inset-0" onClick={handleClose} />
 
       <div
         className={`relative z-10 flex flex-col w-full h-full sm:rounded-2xl sm:border sm:border-slate-800 bg-slate-900 shadow-2xl overflow-hidden ${
@@ -257,7 +279,7 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
 
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               title="Cerrar (Esc)"
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-rose-500/20 hover:text-rose-300 transition cursor-pointer ml-1"
             >
