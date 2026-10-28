@@ -53,6 +53,7 @@ const SectorTreeItem: React.FC<{
   onSelectUser: (user: User) => void
   collapsedSectors: Record<string, boolean>
   toggleSector: (key: string) => void
+  toggleBranch: (node: SectorNode) => void
   searchQuery: string
   level?: number
 }> = ({
@@ -61,11 +62,12 @@ const SectorTreeItem: React.FC<{
   onSelectUser,
   collapsedSectors,
   toggleSector,
+  toggleBranch,
   searchQuery,
   level = 0,
 }) => {
   const key = String(node.sectorId || 'unassigned')
-  const isCollapsed = collapsedSectors[key]
+  const isCollapsed = Boolean(collapsedSectors[key])
 
   const getTotalUsersCount = (n: SectorNode): number => {
     return n.users.length + n.children.reduce((acc, c) => acc + getTotalUsersCount(c), 0)
@@ -104,21 +106,35 @@ const SectorTreeItem: React.FC<{
       }`}
     >
       {/* Sector Header */}
-      <button
+      <div
         onClick={() => toggleSector(key)}
         style={{ paddingLeft: `${Math.max(12, level * 16 + 12)}px` }}
-        className={`flex w-full min-w-0 overflow-hidden items-center justify-between py-2.5 sm:py-2 pr-3 text-left text-sm font-semibold transition cursor-pointer ${
+        className={`group/sector flex w-full min-w-0 overflow-hidden items-center justify-between py-2 sm:py-1.5 pr-3 text-left text-sm font-semibold transition cursor-pointer select-none ${
           level === 0
             ? 'text-slate-200 hover:bg-slate-800/60'
             : 'text-slate-300 hover:bg-slate-800/40 rounded-lg'
         }`}
       >
         <div className="flex items-center gap-2 truncate min-w-0">
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
-          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              toggleSector(key)
+            }}
+            title={isCollapsed ? `Desplegar sector ${node.sectorName}` : `Comprimir sector ${node.sectorName}`}
+            className={`p-1 rounded-md transition-colors shrink-0 cursor-pointer ${
+              isCollapsed
+                ? 'text-slate-400 hover:text-white hover:bg-slate-800'
+                : 'text-blue-400 bg-blue-500/15 hover:bg-blue-500/25'
+            }`}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
           <span
             className="h-2.5 w-2.5 rounded-full shrink-0"
             style={{ backgroundColor: node.sectorColor }}
@@ -133,6 +149,27 @@ const SectorTreeItem: React.FC<{
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0 ml-1">
+          {node.children.length > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleBranch(node)
+              }}
+              title={
+                isCollapsed
+                  ? `Desplegar todo el sector ${node.sectorName} y subsectores`
+                  : `Comprimir todo el sector ${node.sectorName} y subsectores`
+              }
+              className="p-1 rounded-md text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition cursor-pointer"
+            >
+              {isCollapsed ? (
+                <ChevronsUpDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronsDownUp className="h-3.5 w-3.5" />
+              )}
+            </button>
+          )}
           {totalUnreadInBranch > 0 && (
             <span
               title={`${totalUnreadInBranch} mensaje${totalUnreadInBranch > 1 ? 's' : ''} nuevo${totalUnreadInBranch > 1 ? 's' : ''} en este sector`}
@@ -145,7 +182,7 @@ const SectorTreeItem: React.FC<{
             {totalOnlineInBranch}/{totalUsersInBranch}
           </span>
         </div>
-      </button>
+      </div>
 
       {/* Expanded Content: Direct Users + Subsectors */}
       {!isCollapsed && (
@@ -279,6 +316,7 @@ const SectorTreeItem: React.FC<{
                 onSelectUser={onSelectUser}
                 collapsedSectors={collapsedSectors}
                 toggleSector={toggleSector}
+                toggleBranch={toggleBranch}
                 searchQuery={searchQuery}
                 level={level + 1}
               />
@@ -308,6 +346,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ...prev,
       [sectorKey]: !prev[sectorKey],
     }))
+  }
+
+  const toggleBranch = (targetNode: SectorNode) => {
+    const collectKeys = (n: SectorNode): string[] => {
+      const keys = [String(n.sectorId || 'unassigned')]
+      for (const c of n.children) {
+        keys.push(...collectKeys(c))
+      }
+      return keys
+    }
+    const branchKeys = collectKeys(targetNode)
+    setCollapsedSectors((prev) => {
+      const isCurrentlyCollapsed = Boolean(prev[String(targetNode.sectorId || 'unassigned')])
+      const next = { ...prev }
+      for (const k of branchKeys) {
+        next[k] = !isCurrentlyCollapsed
+      }
+      return next
+    })
   }
 
   const expandAll = () => {
@@ -458,15 +515,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="flex h-full w-full shrink-0 flex-col border-r border-slate-800 bg-slate-900/95 overflow-hidden">
       {/* Search Header */}
-      <div className="shrink-0 p-4 border-b border-slate-800">
+      <div className="shrink-0 p-3.5 sm:p-4 border-b border-slate-800">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 text-slate-200 font-bold text-sm sm:text-base">
             <FolderKanban className="h-4.5 w-4.5 text-blue-400" />
             <span>Sectores y Estructura</span>
           </div>
-          <span className="text-xs font-semibold text-slate-300 bg-slate-800/90 border border-slate-700/60 px-2.5 py-0.5 rounded-full">
-            {onlineUsers}/{totalUsers} en línea
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-slate-300 bg-slate-800/90 border border-slate-700/60 px-2 py-0.5 rounded-full">
+              {onlineUsers}/{totalUsers}
+            </span>
+            <div className="flex items-center bg-slate-800/80 border border-slate-700/60 rounded-lg p-0.5 shadow-sm">
+              <button
+                type="button"
+                onClick={expandAll}
+                title="Desplegar todos los sectores"
+                className="p-1 rounded-md text-slate-400 hover:text-blue-400 hover:bg-slate-700/60 transition cursor-pointer"
+              >
+                <ChevronsUpDown className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={collapseAll}
+                title="Comprimir todos los sectores"
+                className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/60 transition cursor-pointer"
+              >
+                <ChevronsDownUp className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="relative">
@@ -479,33 +556,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full rounded-xl border border-slate-800 bg-slate-950/70 py-2 pr-4 pl-9 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
           />
         </div>
-
-        {/* Quick controls: Expandir y Comprimir sectores */}
-        {!searchQuery && (
-          <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-800/60">
-            <span className="text-[11px] font-medium text-slate-400">Vista de sectores:</span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={expandAll}
-                title="Desplegar todos los sectores y subsectores"
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/70 hover:bg-slate-700/70 text-slate-300 hover:text-white text-xs font-medium border border-slate-700/50 transition cursor-pointer active:scale-95"
-              >
-                <ChevronsUpDown className="h-3.5 w-3.5 text-blue-400" />
-                <span>Desplegar</span>
-              </button>
-              <button
-                type="button"
-                onClick={collapseAll}
-                title="Comprimir todos los sectores"
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/70 hover:bg-slate-700/70 text-slate-300 hover:text-white text-xs font-medium border border-slate-700/50 transition cursor-pointer active:scale-95"
-              >
-                <ChevronsDownUp className="h-3.5 w-3.5 text-slate-400" />
-                <span>Comprimir</span>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Pinned Broadcast Channel (Canal de Difusión e Información) */}
@@ -571,6 +621,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onSelectUser={onSelectUser}
               collapsedSectors={collapsedSectors}
               toggleSector={toggleSector}
+              toggleBranch={toggleBranch}
               searchQuery={searchQuery}
               level={0}
             />

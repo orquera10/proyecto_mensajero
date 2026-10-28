@@ -59,6 +59,36 @@ function formatBytes(bytes?: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
 }
 
+// Helper para detectar si un mensaje contiene únicamente emojis y darle tamaño grande
+function getEmojiStyle(content?: string | null): { isOnlyEmoji: boolean; emojiClass: string } {
+  if (!content) return { isOnlyEmoji: false, emojiClass: '' }
+  const trimmed = content.trim()
+  if (!trimmed) return { isOnlyEmoji: false, emojiClass: '' }
+
+  const onlyEmojiRegex = /^(\p{Extended_Pictographic}|\p{Emoji_Presentation}|\p{Emoji_Modifier}|\p{Emoji_Modifier_Base}|\uFE0F|\u200D|\s)+$/u
+  if (!onlyEmojiRegex.test(trimmed)) {
+    return { isOnlyEmoji: false, emojiClass: '' }
+  }
+
+  const match = trimmed.match(/\p{Extended_Pictographic}/gu)
+  const count = match ? match.length : 0
+
+  if (count === 1) {
+    return { isOnlyEmoji: true, emojiClass: 'text-[52px] leading-tight py-1 inline-block' }
+  }
+  if (count === 2) {
+    return { isOnlyEmoji: true, emojiClass: 'text-[40px] leading-tight py-0.5 inline-block' }
+  }
+  if (count === 3) {
+    return { isOnlyEmoji: true, emojiClass: 'text-[32px] leading-tight py-0.5 inline-block' }
+  }
+  if (count <= 6) {
+    return { isOnlyEmoji: true, emojiClass: 'text-[26px] leading-normal py-0.5 inline-block' }
+  }
+
+  return { isOnlyEmoji: false, emojiClass: '' }
+}
+
 function getSectorLabel(user?: User | null): string {
   if (!user) return ''
   if (user.sector_short_path) {
@@ -594,6 +624,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         ) : (
           messages.map((msg) => {
             const isMine = msg.isMine
+            const emojiStyle = getEmojiStyle(msg.content)
+            const isPureEmoji = emojiStyle.isOnlyEmoji && !msg.file_url && !isBroadcast
 
             return (
               <div
@@ -603,10 +635,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 <div
                   className={`${
                     isBroadcast ? 'w-full max-w-[95%] sm:max-w-[80%]' : 'max-w-[85%] sm:max-w-[70%]'
-                  } rounded-2xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-[14.5px] leading-relaxed shadow-sm break-words ${
-                    isMine
-                      ? 'bg-blue-600 text-white rounded-br-none shadow-blue-600/10'
-                      : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-bl-none'
+                  } rounded-2xl break-words transition-all ${
+                    isPureEmoji
+                      ? 'bg-transparent text-slate-100 shadow-none px-1 py-0.5'
+                      : `px-3.5 sm:px-4 py-2 sm:py-2.5 text-[15px] leading-relaxed shadow-sm ${
+                          isMine
+                            ? 'bg-blue-600 text-white rounded-br-none shadow-blue-600/10'
+                            : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-bl-none'
+                        }`
                   }`}
                 >
                   {/* Broadcast Sender Header (Autor, Sector, Rango) */}
@@ -653,7 +689,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
                   {/* Text Content */}
                   {msg.content && (
-                    <p className="leading-relaxed whitespace-pre-wrap select-text break-words">{msg.content}</p>
+                    emojiStyle.isOnlyEmoji ? (
+                      <div className={`select-text ${emojiStyle.emojiClass}`}>{msg.content}</div>
+                    ) : (
+                      <p className="leading-relaxed whitespace-pre-wrap select-text break-words">{msg.content}</p>
+                    )
                   )}
 
                   {/* Image Attachment */}
@@ -704,8 +744,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   
                   {/* Timestamp & Read Status */}
                   <div
-                    className={`mt-1.5 flex items-center justify-end gap-1 text-[10px] ${
-                      isMine ? 'text-blue-200' : 'text-slate-500'
+                    className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
+                      isPureEmoji
+                        ? 'text-slate-400 bg-slate-950/60 px-1.5 py-0.5 rounded-full backdrop-blur-sm self-end inline-flex ml-auto border border-slate-800/40'
+                        : isMine
+                        ? 'text-blue-200'
+                        : 'text-slate-500'
                     }`}
                   >
                     <span>
