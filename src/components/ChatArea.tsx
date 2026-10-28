@@ -201,6 +201,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   // Mensaje al que se está respondiendo (Citar / Quote)
   const [replyingTo, setReplyingTo] = useState<Message | null>(null)
 
+  // Botón flotante para bajar al final del chat (estilo WhatsApp)
+  const [showScrollBottom, setShowScrollBottom] = useState(false)
+  const [unreadBelowCount, setUnreadBelowCount] = useState(0)
+
+  // Resaltado temporal al saltar a un mensaje citado
+  const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null)
+
   // Mensajes fijados en el Canal de Difusión
   const [pinnedBroadcastIds, setPinnedBroadcastIds] = useState<number[]>(() => {
     try {
@@ -419,12 +426,46 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     const lastMsg = messages[messages.length - 1]
     if (isNearBottom || lastMsg?.isMine) {
       container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+      setShowScrollBottom(false)
+      setUnreadBelowCount(0)
+    } else {
+      setShowScrollBottom(true)
+      setUnreadBelowCount((prev) => prev + 1)
     }
   }, [messages, activeUser?.id, isBroadcast])
 
-  // Scroll infinito hacia arriba al retroceder en el chat (como WhatsApp)
+  const scrollToBottom = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      })
+      setShowScrollBottom(false)
+      setUnreadBelowCount(0)
+    }
+  }
+
+  const scrollToMessage = (targetId: number) => {
+    const el = document.getElementById(`msg-${targetId}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightedMessageId(targetId)
+      setTimeout(() => {
+        setHighlightedMessageId((prev) => (prev === targetId ? null : prev))
+      }, 2200)
+    }
+  }
+
+  // Scroll infinito hacia arriba y detector para botón flotante "Bajar al final" (estilo WhatsApp)
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const container = e.currentTarget
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    const isScrolledUp = distanceFromBottom > 220
+    setShowScrollBottom(isScrolledUp)
+    if (!isScrolledUp) {
+      setUnreadBelowCount(0)
+    }
+
     if (container.scrollTop < 60 && hasMore && !isLoadingMore && onLoadMore) {
       prevScrollHeightRef.current = container.scrollHeight
       onLoadMore()
@@ -458,7 +499,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         : replyingTo.message_type === 'image'
         ? '📷 Imagen'
         : '📎 Archivo'
-      finalContent = `> ${author}: ${snippet}\n\n${finalContent}`
+      finalContent = `> [id:${replyingTo.id}] ${author}: ${snippet}\n\n${finalContent}`
       setReplyingTo(null)
     }
 
@@ -1017,13 +1058,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             const isWithin15Min = !isNaN(msgAgeMinutes) && msgAgeMinutes <= 15
             const isEditable = Boolean(isMine && !msg.is_deleted && msg.message_type === 'text' && isWithin15Min)
             const isDeletable = Boolean(!msg.is_deleted && ((isMine && isWithin15Min) || currentUser?.role === 'admin'))
+            const isHighlighted = highlightedMessageId === msg.id
 
             return (
               <div
                 key={msg.id}
                 id={`msg-${msg.id}`}
-                className={`group relative flex items-end gap-1.5 ${isMine ? 'justify-end' : 'justify-start'} ${
-                  isSearchMatch
+                className={`group relative flex items-end gap-1.5 transition-all duration-300 ${isMine ? 'justify-end' : 'justify-start'} ${
+                  isHighlighted
+                    ? 'ring-2 ring-blue-400 rounded-2xl p-1 bg-blue-500/20 shadow-lg shadow-blue-500/20 scale-[1.01]'
+                    : isSearchMatch
                     ? 'ring-2 ring-amber-400 rounded-2xl p-1 bg-amber-500/10'
                     : hasSearchMatch
                     ? 'ring-1 ring-amber-400/40 rounded-2xl'
@@ -1187,22 +1231,60 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                           <div className={`select-text ${emojiStyle.emojiClass}`}>{msg.content}</div>
                         ) : msg.content.startsWith('> ') && msg.content.includes('\n\n') ? (() => {
                           const doubleNewline = msg.content.indexOf('\n\n')
-                          const quoteHeader = msg.content.slice(2, doubleNewline)
+                          let quoteHeader = msg.content.slice(2, doubleNewline)
                           const body = msg.content.slice(doubleNewline + 2)
+
+                          let targetMsgId: number | null = null
+                          const idMatch = quoteHeader.match(/^\[id:(\d+)\]\s*/)
+                          if (idMatch) {
+                            targetMsgId = Number(idMatch[1])
+                            quoteHeader = quoteHeader.replace(/^\[id:\d+\]\s*/, '')
+                          }
+
                           const colon = quoteHeader.indexOf(':')
                           const author = colon !== -1 ? quoteHeader.slice(0, colon) : 'Mensaje citado'
                           const quoteSnippet = colon !== -1 ? quoteHeader.slice(colon + 1).trim() : quoteHeader
 
+                          // Fallback: si no tenía ID embebido (mensajes viejos), buscarlo por coincidencia en la conversación
+                          if (!targetMsgId) {
+                            const cleanSnippet = quoteSnippet.replace(/^(📷 Imagen|📎 Archivo)/, '').trim()
+                            const found = messages.find((m) => {
+                              if (m.id === msg.id) return false
+                              if (cleanSnippet && m.content && m.content.includes(cleanSnippet)) return true
+                              if (m.file_name && quoteSnippet.includes(m.file_name)) return true
+                              return false
+                            })
+                            if (found) targetMsgId = found.id
+                          }
+
                           return (
                             <div className="space-y-1.5">
                               <div
-                                className={`rounded-lg px-2.5 py-1 text-xs select-none border-l-4 ${
+                                onClick={(e) => {
+                                  if (targetMsgId) {
+                                    e.stopPropagation()
+                                    scrollToMessage(targetMsgId)
+                                  }
+                                }}
+                                className={`rounded-lg px-2.5 py-1.5 text-xs border-l-4 transition-all ${
+                                  targetMsgId
+                                    ? 'cursor-pointer hover:brightness-110 active:scale-[0.99] group/quote'
+                                    : 'select-none'
+                                } ${
                                   isMine
-                                    ? 'bg-blue-800/40 border-amber-300 text-blue-100'
-                                    : 'bg-slate-950/60 border-amber-400 text-slate-300'
+                                    ? 'bg-blue-800/50 border-amber-300 text-blue-100 hover:bg-blue-800/70'
+                                    : 'bg-slate-950/70 border-amber-400 text-slate-300 hover:bg-slate-950'
                                 }`}
+                                title={targetMsgId ? 'Clic para ir al mensaje original' : undefined}
                               >
-                                <p className="font-bold text-[11px] text-amber-300 truncate">{author}</p>
+                                <p className="font-bold text-[11px] text-amber-300 truncate flex items-center justify-between">
+                                  <span>{author}</span>
+                                  {targetMsgId && (
+                                    <span className="text-[9px] opacity-75 font-normal group-hover/quote:underline">
+                                      Ver original ↑
+                                    </span>
+                                  )}
+                                </p>
                                 <p className="line-clamp-2 italic text-[11px] opacity-90">{quoteSnippet}</p>
                               </div>
                               <p className="leading-relaxed whitespace-pre-wrap select-text break-words">{body}</p>
@@ -1458,6 +1540,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Floating Scroll-to-Bottom Button (Estilo WhatsApp) */}
+      {showScrollBottom && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          title="Ir al último mensaje"
+          className="absolute right-4 sm:right-6 bottom-20 sm:bottom-24 z-30 flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full bg-slate-800/95 hover:bg-slate-700 text-slate-200 hover:text-white shadow-2xl border border-slate-700/80 backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 animate-in fade-in slide-in-from-bottom-2 cursor-pointer"
+        >
+          <ChevronDown className="h-5 w-5" />
+          {unreadBelowCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] px-1.5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white shadow-md animate-pulse">
+              {unreadBelowCount > 9 ? '9+' : unreadBelowCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* Message Input Box or Read-Only Notice */}
       <div className="shrink-0 p-2.5 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-900/60 backdrop-blur-md relative">
