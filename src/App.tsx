@@ -1214,7 +1214,7 @@ export const App: React.FC = () => {
       {/* Main Container */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sectors and Users Sidebar */}
-        <div className={`h-full ${activeUser || isBroadcastActive ? 'hidden md:flex' : 'flex'} w-full md:w-80 md:min-w-[320px] md:max-w-[320px] shrink-0 flex-col overflow-hidden`}>
+        <div className={`h-full ${activeUser || isBroadcastActive ? 'hidden md:flex' : 'flex'} w-full md:w-[380px] md:min-w-[380px] md:max-w-[380px] lg:w-[400px] lg:min-w-[400px] lg:max-w-[400px] shrink-0 flex-col overflow-hidden`}>
           <Sidebar
             users={users}
             sectors={sectors}

@@ -6,6 +6,8 @@ import {
   FolderKanban,
   Star,
   Megaphone,
+  ChevronsUpDown,
+  ChevronsDownUp,
 } from 'lucide-react'
 import type { User, Sector, PresenceStatus } from '../types'
 import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
@@ -104,8 +106,8 @@ const SectorTreeItem: React.FC<{
       {/* Sector Header */}
       <button
         onClick={() => toggleSector(key)}
-        style={{ paddingLeft: `${Math.max(12, level * 14 + 10)}px` }}
-        className={`flex w-full min-w-0 overflow-hidden items-center justify-between py-2.5 sm:py-2 pr-3 text-left text-xs font-semibold transition cursor-pointer ${
+        style={{ paddingLeft: `${Math.max(12, level * 16 + 12)}px` }}
+        className={`flex w-full min-w-0 overflow-hidden items-center justify-between py-2.5 sm:py-2 pr-3 text-left text-sm font-semibold transition cursor-pointer ${
           level === 0
             ? 'text-slate-200 hover:bg-slate-800/60'
             : 'text-slate-300 hover:bg-slate-800/40 rounded-lg'
@@ -113,19 +115,19 @@ const SectorTreeItem: React.FC<{
       >
         <div className="flex items-center gap-2 truncate min-w-0">
           {isCollapsed ? (
-            <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
           ) : (
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
           )}
           <span
-            className="h-2 w-2 rounded-full shrink-0"
+            className="h-2.5 w-2.5 rounded-full shrink-0"
             style={{ backgroundColor: node.sectorColor }}
           />
           <span className={`truncate ${totalUnreadInBranch > 0 ? 'text-white font-bold' : ''}`}>
             {node.sectorName}
           </span>
           {node.children.length > 0 && (
-            <span className="rounded bg-slate-800/80 px-1 py-0.2 text-[9px] font-normal text-slate-400 shrink-0">
+            <span className="rounded bg-slate-800/80 px-1.5 py-0.5 text-[10px] font-normal text-slate-400 shrink-0">
               {node.children.length} {node.children.length === 1 ? 'subsector' : 'subsectores'}
             </span>
           )}
@@ -139,7 +141,7 @@ const SectorTreeItem: React.FC<{
               {totalUnreadInBranch > 99 ? '99+' : totalUnreadInBranch}
             </span>
           )}
-          <span className="text-[11px] text-slate-500 font-normal">
+          <span className="text-xs text-slate-400 font-normal">
             {totalOnlineInBranch}/{totalUsersInBranch}
           </span>
         </div>
@@ -159,7 +161,7 @@ const SectorTreeItem: React.FC<{
                 key={user.id}
                 onClick={() => onSelectUser(user)}
                 title={`${displayName}${user.sector_short_path ? ` • ${user.sector_short_path}` : ''}`}
-                style={{ paddingLeft: `${Math.max(10, level * 12 + 8)}px` }}
+                style={{ paddingLeft: `${Math.max(28, level * 16 + 32)}px` }}
                 className={`flex w-full min-w-0 overflow-hidden items-center gap-3 rounded-lg py-2.5 sm:py-2 pr-2.5 min-h-[48px] active:scale-[0.99] text-left transition cursor-pointer ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
@@ -308,6 +310,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }))
   }
 
+  const expandAll = () => {
+    const next: Record<string, boolean> = {}
+    for (const s of sectors) {
+      next[String(s.id)] = false
+    }
+    next['unassigned'] = false
+    setCollapsedSectors(next)
+  }
+
+  const collapseAll = () => {
+    const next: Record<string, boolean> = {}
+    for (const s of sectors) {
+      next[String(s.id)] = true
+    }
+    next['unassigned'] = true
+    setCollapsedSectors(next)
+  }
+
   // Auto-desplegar sectores y subsectores que contengan mensajes sin leer
   useEffect(() => {
     const unreadUsers = users.filter((u) => u.unreadCount && u.unreadCount > 0 && u.id !== currentUserId)
@@ -440,11 +460,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Search Header */}
       <div className="shrink-0 p-4 border-b border-slate-800">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
-            <FolderKanban className="h-4 w-4 text-blue-400" />
+          <div className="flex items-center gap-2 text-slate-200 font-bold text-sm sm:text-base">
+            <FolderKanban className="h-4.5 w-4.5 text-blue-400" />
             <span>Sectores y Estructura</span>
           </div>
-          <span className="text-xs font-medium text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+          <span className="text-xs font-semibold text-slate-300 bg-slate-800/90 border border-slate-700/60 px-2.5 py-0.5 rounded-full">
             {onlineUsers}/{totalUsers} en línea
           </span>
         </div>
@@ -456,9 +476,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por usuario o sector..."
-            className="w-full rounded-xl border border-slate-800 bg-slate-950/70 py-2 pr-4 pl-9 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+            className="w-full rounded-xl border border-slate-800 bg-slate-950/70 py-2 pr-4 pl-9 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
           />
         </div>
+
+        {/* Quick controls: Expandir y Comprimir sectores */}
+        {!searchQuery && (
+          <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-800/60">
+            <span className="text-[11px] font-medium text-slate-400">Vista de sectores:</span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={expandAll}
+                title="Desplegar todos los sectores y subsectores"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/70 hover:bg-slate-700/70 text-slate-300 hover:text-white text-xs font-medium border border-slate-700/50 transition cursor-pointer active:scale-95"
+              >
+                <ChevronsUpDown className="h-3.5 w-3.5 text-blue-400" />
+                <span>Desplegar</span>
+              </button>
+              <button
+                type="button"
+                onClick={collapseAll}
+                title="Comprimir todos los sectores"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/70 hover:bg-slate-700/70 text-slate-300 hover:text-white text-xs font-medium border border-slate-700/50 transition cursor-pointer active:scale-95"
+              >
+                <ChevronsDownUp className="h-3.5 w-3.5 text-slate-400" />
+                <span>Comprimir</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Pinned Broadcast Channel (Canal de Difusión e Información) */}
@@ -489,7 +536,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-1">
-                <span className={`font-bold text-xs truncate ${broadcastUnreadCount > 0 && !isBroadcastActive ? 'text-white' : ''}`}>
+                <span className={`font-bold text-sm truncate ${broadcastUnreadCount > 0 && !isBroadcastActive ? 'text-white' : ''}`}>
                   Avisos y Difusión
                 </span>
                 {broadcastUnreadCount > 0 && !isBroadcastActive && (
@@ -501,7 +548,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                 )}
               </div>
-              <p className={`text-[11px] truncate leading-tight ${isBroadcastActive ? 'text-blue-100' : 'text-slate-400'}`}>
+              <p className={`text-xs truncate leading-tight ${isBroadcastActive ? 'text-blue-100' : 'text-slate-400'}`}>
                 Comunicados Institucionales
               </p>
             </div>

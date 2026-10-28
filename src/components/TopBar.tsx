@@ -47,10 +47,10 @@ export const TopBar: React.FC<TopBarProps> = ({
           <ShieldCheck className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h1 className="text-xs font-bold uppercase tracking-wider text-white">
+          <h1 className="text-sm font-bold uppercase tracking-wider text-white">
             Mensajero
           </h1>
-          <p className="text-[10px] text-slate-400 hidden sm:block">Institucional</p>
+          <p className="text-xs text-slate-400 hidden sm:block">Institucional</p>
         </div>
       </div>
 
@@ -61,7 +61,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             onClick={openAdminDashboard}
             title="Abrir Panel de Administración"
-            className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition cursor-pointer shrink-0"
           >
             <LayoutDashboard className="h-3.5 w-3.5" />
             <span className="hidden md:inline">Panel Admin</span>
@@ -72,7 +72,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="relative shrink-0">
           <button
             onClick={() => setShowStatusMenu(!showStatusMenu)}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2 sm:px-2.5 py-1.5 text-xs text-slate-200 hover:bg-slate-800 transition cursor-pointer max-w-[130px] sm:max-w-[190px] md:max-w-[230px]"
+            className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-2.5 sm:px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800 transition cursor-pointer max-w-[150px] sm:max-w-[210px] md:max-w-[260px]"
           >
             {currentUser.avatar_url ? (
               <div className="relative shrink-0">
