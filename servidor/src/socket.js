@@ -309,6 +309,117 @@ export function initSocketIO(io) {
       }
     })
 
+    // Handle Message Editing (within 15 minutes by sender)
+    socket.on('message:edit', async (data, callback) => {
+      try {
+        const messageId = Number(data.message_id)
+        const newContent = (data.content || '').trim()
+
+        if (!messageId || !newContent) {
+          return callback?.({ error: 'Mensaje o contenido inválido' })
+        }
+
+        const { rows } = await query(
+          `SELECT id, sender_id, receiver_id, sector_id, created_at FROM messages WHERE id = ?`,
+          [messageId]
+        )
+        if (!rows || rows.length === 0) {
+          return callback?.({ error: 'Mensaje no encontrado' })
+        }
+
+        const msg = rows[0]
+        if (Number(msg.sender_id) !== userId) {
+          return callback?.({ error: 'Solo el autor puede editar este mensaje' })
+        }
+
+        const diffMinutes = (Date.now() - new Date(msg.created_at).getTime()) / 60000
+        if (diffMinutes > 15) {
+          return callback?.({ error: 'El tiempo límite para editar este mensaje (15 minutos) ha expirado' })
+        }
+
+        await query(`UPDATE messages SET content = ? WHERE id = ?`, [newContent, messageId])
+
+        const editPayload = {
+          id: messageId,
+          content: newContent,
+          sender_id: userId,
+          receiver_id: msg.receiver_id,
+          is_edited: true,
+        }
+
+        if (msg.receiver_id) {
+          io.to(`user:${msg.receiver_id}`).emit('message:edited', editPayload)
+          socket.to(`user:${userId}`).emit('message:edited', editPayload)
+        } else {
+          io.emit('broadcast:edited', editPayload)
+        }
+
+        callback?.({ success: true, message: editPayload })
+      } catch (err) {
+        console.error('Error editing message in socket:', err)
+        callback?.({ error: 'Error al editar el mensaje' })
+      }
+    })
+
+    // Handle Message Deletion (within 15 minutes by sender, or admin)
+    socket.on('message:delete', async (data, callback) => {
+      try {
+        const messageId = Number(data.message_id)
+        if (!messageId) {
+          return callback?.({ error: 'ID de mensaje inválido' })
+        }
+
+        const { rows } = await query(
+          `SELECT id, sender_id, receiver_id, sector_id, created_at FROM messages WHERE id = ?`,
+          [messageId]
+        )
+        if (!rows || rows.length === 0) {
+          return callback?.({ error: 'Mensaje no encontrado' })
+        }
+
+        const msg = rows[0]
+        const isAuthor = Number(msg.sender_id) === userId
+        const isAdmin = user.role === 'admin'
+
+        if (!isAuthor && !isAdmin) {
+          return callback?.({ error: 'No tienes permiso para eliminar este mensaje' })
+        }
+
+        const diffMinutes = (Date.now() - new Date(msg.created_at).getTime()) / 60000
+        if (diffMinutes > 15 && !isAdmin) {
+          return callback?.({ error: 'El tiempo límite para eliminar este mensaje (15 minutos) ha expirado' })
+        }
+
+        const deletedPlaceholder = '🚫 Este mensaje fue eliminado'
+        await query(
+          `UPDATE messages 
+           SET content = ?, file_url = NULL, file_name = NULL, message_type = 'text' 
+           WHERE id = ?`,
+          [deletedPlaceholder, messageId]
+        )
+
+        const deletePayload = {
+          id: messageId,
+          content: deletedPlaceholder,
+          sender_id: msg.sender_id,
+          receiver_id: msg.receiver_id,
+          is_deleted: true,
+        }
+
+        if (msg.receiver_id) {
+          io.to(`user:${msg.receiver_id}`).emit('message:deleted', deletePayload)
+          socket.to(`user:${userId}`).emit('message:deleted', deletePayload)
+        } else {
+          io.emit('broadcast:deleted', deletePayload)
+        }
+
+        callback?.({ success: true, message: deletePayload })
+      } catch (err) {
+        console.error('Error deleting message in socket:', err)
+        callback?.({ error: 'Error al eliminar el mensaje' })
+      }
+    })
+
     // Handle Disconnect with mobile grace period
     socket.on('disconnect', () => {
       if (userPresenceMap.has(userId)) {

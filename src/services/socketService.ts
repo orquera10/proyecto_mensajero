@@ -20,6 +20,8 @@ export type SocketEventHandlers = {
   onUsersUpdated?: () => void
   onSectorsUpdated?: () => void
   onBroadcastReceived?: (message: Message) => void
+  onMessageEdited?: (data: { id: number; content: string; sender_id: number; receiver_id: number | null; is_edited?: boolean }) => void
+  onMessageDeleted?: (data: { id: number; content: string; sender_id: number; receiver_id: number | null; is_deleted?: boolean }) => void
   onDisconnect: () => void
   onError: (err: any) => void
 }
@@ -112,6 +114,22 @@ class SocketService {
       this.handlers.onBroadcastReceived?.(message)
     })
 
+    this.socket.on('message:edited', (data) => {
+      this.handlers.onMessageEdited?.(data)
+    })
+
+    this.socket.on('broadcast:edited', (data) => {
+      this.handlers.onMessageEdited?.(data)
+    })
+
+    this.socket.on('message:deleted', (data) => {
+      this.handlers.onMessageDeleted?.(data)
+    })
+
+    this.socket.on('broadcast:deleted', (data) => {
+      this.handlers.onMessageDeleted?.(data)
+    })
+
     this.socket.on('disconnect', () => {
       this.handlers.onDisconnect?.()
     })
@@ -193,6 +211,38 @@ class SocketService {
     if (this.socket) {
       this.socket.emit('message:read', { sender_id: senderId })
     }
+  }
+
+  public editMessage(messageId: number, content: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        return reject(new Error('No hay conexión con el servidor'))
+      }
+
+      this.socket.emit('message:edit', { message_id: messageId, content }, (response: any) => {
+        if (response?.error) {
+          reject(new Error(response.error))
+        } else {
+          resolve(response)
+        }
+      })
+    })
+  }
+
+  public deleteMessage(messageId: number): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket) {
+        return reject(new Error('No hay conexión con el servidor'))
+      }
+
+      this.socket.emit('message:delete', { message_id: messageId }, (response: any) => {
+        if (response?.error) {
+          reject(new Error(response.error))
+        } else {
+          resolve(response)
+        }
+      })
+    })
   }
 
   public disconnect() {

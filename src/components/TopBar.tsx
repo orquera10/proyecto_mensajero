@@ -8,6 +8,7 @@ import {
   Bell,
   BellOff,
   Clock,
+  Star,
 } from 'lucide-react'
 import type { User, PresenceStatus } from '../types'
 import { apiService, sanitizeName } from '../services/apiService'
@@ -19,6 +20,8 @@ interface TopBarProps {
   onPresenceChange: (status: PresenceStatus) => void
   onOpenSettings: () => void
   onLogout: () => void
+  onOpenStarred?: () => void
+  starredCount?: number
 }
 
 const statusOptions: { value: PresenceStatus; label: string; color: string }[] = [
@@ -33,6 +36,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onPresenceChange,
   onOpenSettings,
   onLogout,
+  onOpenStarred,
+  starredCount,
 }) => {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
   const [showMuteMenu, setShowMuteMenu] = useState(false)
@@ -240,6 +245,22 @@ export const TopBar: React.FC<TopBarProps> = ({
             </div>
           )}
         </div>
+
+        {/* Starred Messages button */}
+        {onOpenStarred && (
+          <button
+            onClick={onOpenStarred}
+            title={starredCount ? `Mensajes destacados (${starredCount})` : 'Mensajes destacados'}
+            className="relative rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-amber-400 transition cursor-pointer shrink-0"
+          >
+            <Star className={`h-4 w-4 ${starredCount && starredCount > 0 ? 'fill-amber-400 text-amber-400' : ''}`} />
+            {starredCount && starredCount > 0 ? (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 shadow-sm">
+                {starredCount}
+              </span>
+            ) : null}
+          </button>
+        )}
 
         {/* Settings button */}
         <button

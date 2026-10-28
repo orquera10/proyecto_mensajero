@@ -55,6 +55,9 @@ export interface Message {
   sender_is_leader?: boolean
   sender_sector?: string
   sender_sector_color?: string
+  is_edited?: boolean
+  is_deleted?: boolean
+  is_starred?: boolean
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'

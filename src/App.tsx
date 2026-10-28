@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { apiService, sanitizeName } from './services/apiService'
 import { socketService } from './services/socketService'
 import { storageService } from './services/storageService'
@@ -9,6 +9,8 @@ import { TopBar } from './components/TopBar'
 import { Sidebar } from './components/Sidebar'
 import { ChatArea } from './components/ChatArea'
 import { SettingsModal } from './components/SettingsModal'
+import { ForwardModal } from './components/ForwardModal'
+import { StarredMessagesModal } from './components/StarredMessagesModal'
 import { Download, X, Smartphone, ShieldCheck, CheckCircle2 } from 'lucide-react'
 
 export const App: React.FC = () => {
@@ -38,6 +40,36 @@ export const App: React.FC = () => {
   const [myPresence, setMyPresence] = useState<PresenceStatus>('online')
   const [typingMap, setTypingMap] = useState<Record<number, NodeJS.Timeout>>({})
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+  // Reenvío de mensajes (Forward)
+  const [isForwardModalOpen, setIsForwardModalOpen] = useState(false)
+  const [messageToForward, setMessageToForward] = useState<Message | null>(null)
+
+  // Mensajes destacados (Starred)
+  const [isStarredModalOpen, setIsStarredModalOpen] = useState(false)
+  const [starredMessages, setStarredMessages] = useState<Message[]>(() => {
+    try {
+      const u = storageService.getUser()
+      if (!u) return []
+      const stored = localStorage.getItem(`mensajero_starred_${u.id}`)
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+
+  // Sincronizar mensajes destacados al cambiar usuario
+  useEffect(() => {
+    if (!currentUser?.id) return
+    try {
+      const stored = localStorage.getItem(`mensajero_starred_${currentUser.id}`)
+      setStarredMessages(stored ? JSON.parse(stored) : [])
+    } catch {
+      setStarredMessages([])
+    }
+  }, [currentUser?.id])
+
+  const starredMessageIds = useMemo(() => new Set(starredMessages.map((m) => m.id)), [starredMessages])
 
   // Refs to prevent race conditions and closure staleness with sockets
   const presenceMapRef = useRef<Record<number, { presence: PresenceStatus; statusText?: string }>>({})
@@ -598,6 +630,46 @@ export const App: React.FC = () => {
         }
       },
 
+      onMessageEdited: ({ id, content }) => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, content, is_edited: true } : m))
+        )
+        setBroadcastMessages((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, content, is_edited: true } : m))
+        )
+      },
+
+      onMessageDeleted: ({ id, content }) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === id
+              ? {
+                  ...m,
+                  content,
+                  is_deleted: true,
+                  file_url: undefined,
+                  file_name: undefined,
+                  message_type: 'text',
+                }
+              : m
+          )
+        )
+        setBroadcastMessages((prev) =>
+          prev.map((m) =>
+            m.id === id
+              ? {
+                  ...m,
+                  content,
+                  is_deleted: true,
+                  file_url: undefined,
+                  file_name: undefined,
+                  message_type: 'text',
+                }
+              : m
+          )
+        )
+      },
+
       onDisconnect: () => {
         console.warn('Socket desconectado')
       },
@@ -1119,6 +1191,138 @@ export const App: React.FC = () => {
     notificationService.updateUnreadTitle(0)
   }
 
+  // Reenviar mensaje
+  const handleForward = (msg: Message) => {
+    setMessageToForward(msg)
+    setIsForwardModalOpen(true)
+  }
+
+  const handleExecuteForward = async (targetUserId: number, msg: Message) => {
+    try {
+      await socketService.sendMessage({
+        receiver_id: targetUserId,
+        content: msg.content,
+        message_type: msg.message_type,
+        file_url: msg.file_url,
+        file_name: msg.file_name,
+        file_size: msg.file_size,
+        file_mime: msg.file_mime,
+      })
+    } catch (err: any) {
+      console.error('Error forwarding message:', err)
+      alert(err.message || 'Error al reenviar el mensaje')
+      throw err
+    }
+  }
+
+  // Destacar / Guardar mensajes
+  const handleToggleStar = (msg: Message) => {
+    if (!currentUser?.id) return
+    setStarredMessages((prev) => {
+      const exists = prev.some((m) => m.id === msg.id)
+      const next = exists ? prev.filter((m) => m.id !== msg.id) : [{ ...msg, is_starred: true }, ...prev]
+      try {
+        localStorage.setItem(`mensajero_starred_${currentUser.id}`, JSON.stringify(next))
+      } catch (e) {
+        console.warn('Error saving starred messages', e)
+      }
+      return next
+    })
+  }
+
+  const handleUnstar = (msgId: number) => {
+    if (!currentUser?.id) return
+    setStarredMessages((prev) => {
+      const next = prev.filter((m) => m.id !== msgId)
+      try {
+        localStorage.setItem(`mensajero_starred_${currentUser.id}`, JSON.stringify(next))
+      } catch (e) {
+        console.warn('Error saving starred messages', e)
+      }
+      return next
+    })
+  }
+
+  const handleClearAllStarred = () => {
+    if (!currentUser?.id) return
+    setStarredMessages([])
+    try {
+      localStorage.removeItem(`mensajero_starred_${currentUser.id}`)
+    } catch (e) {
+      console.warn('Error clearing starred messages', e)
+    }
+  }
+
+  // Edición de mensajes (hasta 15 minutos)
+  const handleEditMessage = async (messageId: number, newContent: string) => {
+    try {
+      await socketService.editMessage(messageId, newContent)
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, content: newContent, is_edited: true } : m))
+      )
+      setBroadcastMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, content: newContent, is_edited: true } : m))
+      )
+    } catch (err: any) {
+      alert(err.message || 'Error al editar el mensaje')
+    }
+  }
+
+  // Eliminación de mensajes (hasta 15 minutos propio, o admin)
+  const handleDeleteMessage = async (messageId: number) => {
+    try {
+      await socketService.deleteMessage(messageId)
+      const placeholder = '🚫 Este mensaje fue eliminado'
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                content: placeholder,
+                is_deleted: true,
+                file_url: undefined,
+                file_name: undefined,
+                message_type: 'text',
+              }
+            : m
+        )
+      )
+      setBroadcastMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                content: placeholder,
+                is_deleted: true,
+                file_url: undefined,
+                file_name: undefined,
+                message_type: 'text',
+              }
+            : m
+        )
+      )
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar el mensaje')
+    }
+  }
+
+  // Navegación rápida desde mensajes destacados al chat correspondiente
+  const handleNavigateToMessage = (msg: Message) => {
+    if (msg.receiver_id === null && msg.sector_id === null) {
+      setIsBroadcastActive(true)
+      setActiveUser(null)
+    } else {
+      const targetUserId = msg.isMine ? msg.receiver_id : msg.sender_id
+      const targetUser = users.find((u) => Number(u.id) === Number(targetUserId))
+      if (targetUser) {
+        handleSelectUser(targetUser)
+      }
+    }
+    setTimeout(() => {
+      document.getElementById(`msg-${msg.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 250)
+  }
+
   // Windows SSO Manual Trigger
   const handleWindowsSsoLogin = useCallback(async () => {
     if (!window.electronIPC?.getWindowsUser) return
@@ -1208,6 +1412,8 @@ export const App: React.FC = () => {
           onPresenceChange={handlePresenceChange}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onLogout={handleLogout}
+          onOpenStarred={() => setIsStarredModalOpen(true)}
+          starredCount={starredMessages.length}
         />
       </div>
 
@@ -1246,6 +1452,11 @@ export const App: React.FC = () => {
             isBroadcast={isBroadcastActive}
             canPublishBroadcast={canPublishBroadcast}
             currentUser={currentUser}
+            onForward={handleForward}
+            onEditMessage={handleEditMessage}
+            onDeleteMessage={handleDeleteMessage}
+            starredMessageIds={starredMessageIds}
+            onToggleStar={handleToggleStar}
           />
         </div>
       </div>
@@ -1268,6 +1479,29 @@ export const App: React.FC = () => {
           storageService.saveConfig(newCfg)
           apiService.setServerUrl(newCfg.serverUrl)
         }}
+      />
+
+      {/* Reenviar Mensaje Modal */}
+      <ForwardModal
+        isOpen={isForwardModalOpen}
+        onClose={() => {
+          setIsForwardModalOpen(false)
+          setMessageToForward(null)
+        }}
+        message={messageToForward}
+        users={users}
+        currentUser={currentUser}
+        onForward={handleExecuteForward}
+      />
+
+      {/* Mensajes Destacados Modal */}
+      <StarredMessagesModal
+        isOpen={isStarredModalOpen}
+        onClose={() => setIsStarredModalOpen(false)}
+        starredMessages={starredMessages}
+        onUnstar={handleUnstar}
+        onClearAll={handleClearAllStarred}
+        onNavigateToMessage={handleNavigateToMessage}
       />
     </div>
   )
