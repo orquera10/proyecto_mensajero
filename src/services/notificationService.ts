@@ -16,6 +16,11 @@ export const notificationService = {
 
   // Notify incoming message
   notifyIncomingMessage(senderName: string, bodyText: string, playSound: boolean = true, senderId?: number) {
+    // Si el usuario activó silencio temporal / No Molestar, no emitir sonido ni popup
+    if (this.isMuted()) {
+      return
+    }
+
     // 1. Play chime sound
     if (playSound) {
       soundService.playNotificationSound()
@@ -87,5 +92,36 @@ export const notificationService = {
     if (window.electronIPC?.setBadge) {
       window.electronIPC.setBadge(totalUnread)
     }
+  },
+
+  // Gestión de silencio temporal / Modo No Molestar
+  getMuteRemainingMinutes(): number {
+    try {
+      const until = Number(localStorage.getItem('mensajero_mute_until') || 0)
+      const diff = until - Date.now()
+      return diff > 0 ? Math.ceil(diff / 60000) : 0
+    } catch {
+      return 0
+    }
+  },
+
+  isMuted(): boolean {
+    return this.getMuteRemainingMinutes() > 0
+  },
+
+  muteForMinutes(minutes: number) {
+    try {
+      if (minutes <= 0) {
+        localStorage.removeItem('mensajero_mute_until')
+      } else {
+        localStorage.setItem('mensajero_mute_until', String(Date.now() + minutes * 60000))
+      }
+    } catch {
+      // Ignored
+    }
+  },
+
+  unmute() {
+    this.muteForMinutes(0)
   },
 }

@@ -1,13 +1,17 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   ShieldCheck,
   Settings,
   LogOut,
   ChevronDown,
   LayoutDashboard,
+  Bell,
+  BellOff,
+  Clock,
 } from 'lucide-react'
 import type { User, PresenceStatus } from '../types'
 import { apiService, sanitizeName } from '../services/apiService'
+import { notificationService } from '../services/notificationService'
 
 interface TopBarProps {
   currentUser: User
@@ -31,6 +35,27 @@ export const TopBar: React.FC<TopBarProps> = ({
   onLogout,
 }) => {
   const [showStatusMenu, setShowStatusMenu] = useState(false)
+  const [showMuteMenu, setShowMuteMenu] = useState(false)
+  const [muteRemaining, setMuteRemaining] = useState<number>(notificationService.getMuteRemainingMinutes())
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setMuteRemaining(notificationService.getMuteRemainingMinutes())
+    }, 15000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const handleMute = (minutes: number) => {
+    notificationService.muteForMinutes(minutes)
+    setMuteRemaining(minutes)
+    setShowMuteMenu(false)
+  }
+
+  const handleUnmute = () => {
+    notificationService.unmute()
+    setMuteRemaining(0)
+    setShowMuteMenu(false)
+  }
 
   const activeOption = statusOptions.find((s) => s.value === currentPresence) || statusOptions[0]
   const serverUrl = apiService.getServerUrl()
@@ -115,6 +140,86 @@ export const TopBar: React.FC<TopBarProps> = ({
                   <span>{opt.label}</span>
                 </button>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Notification Mute (Silencio Temporal / No Molestar) */}
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowMuteMenu(!showMuteMenu)}
+            title={
+              muteRemaining > 0
+                ? `Notificaciones silenciadas (~${muteRemaining} min restantes). Clic para reactivar.`
+                : 'Silenciar notificaciones temporalmente'
+            }
+            className={`relative rounded-lg p-2 transition cursor-pointer ${
+              muteRemaining > 0
+                ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            {muteRemaining > 0 ? (
+              <>
+                <BellOff className="h-4 w-4" />
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] px-1 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 shadow-sm animate-pulse">
+                  {muteRemaining > 60 ? `${Math.round(muteRemaining / 60)}h` : `${muteRemaining}m`}
+                </span>
+              </>
+            ) : (
+              <Bell className="h-4 w-4" />
+            )}
+          </button>
+
+          {showMuteMenu && (
+            <div className="absolute right-0 mt-1 w-52 rounded-xl border border-slate-800 bg-slate-900 py-1.5 shadow-2xl z-50">
+              <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Clock className="h-3 w-3" />
+                <span>Silenciar Notificaciones</span>
+              </div>
+              {muteRemaining > 0 ? (
+                <button
+                  type="button"
+                  onClick={handleUnmute}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-emerald-400 hover:bg-slate-800 transition cursor-pointer border-b border-slate-800"
+                >
+                  <Bell className="h-3.5 w-3.5" />
+                  <span>Reactivar notificaciones</span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => handleMute(30)}
+                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+              >
+                <span>30 minutos</span>
+                <span className="text-[10px] text-slate-500">Reunión</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMute(60)}
+                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+              >
+                <span>1 hora</span>
+                <span className="text-[10px] text-slate-500">Audiencia</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMute(120)}
+                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+              >
+                <span>2 horas</span>
+                <span className="text-[10px] text-slate-500">Enfoque</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMute(480)}
+                className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800 transition cursor-pointer"
+              >
+                <span>8 horas</span>
+                <span className="text-[10px] text-slate-500">Jornada</span>
+              </button>
             </div>
           )}
         </div>

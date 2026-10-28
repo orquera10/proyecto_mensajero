@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Send,
   Shield,
@@ -15,11 +15,19 @@ import {
   Lock,
   Megaphone,
   Smile,
+  Search,
+  Eye,
+  Pin,
+  Reply,
+  X,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react'
 import type { User, Message, PresenceStatus } from '../types'
 import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
 import { formatSectorName } from '../utils/formatters'
 import { EmojiPicker } from './EmojiPicker'
+import { MediaViewerModal } from './MediaViewerModal'
 
 interface ChatAreaProps {
   activeUser: User | null
@@ -57,6 +65,14 @@ function formatBytes(bytes?: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+}
+
+function isPdfFile(fileName?: string, fileMime?: string, fileUrl?: string): boolean {
+  return (
+    fileMime === 'application/pdf' ||
+    Boolean(fileName?.toLowerCase().endsWith('.pdf')) ||
+    Boolean(fileUrl?.toLowerCase().endsWith('.pdf'))
+  )
 }
 
 // Helper para detectar si un mensaje contiene únicamente emojis y darle tamaño grande
@@ -134,6 +150,146 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Visor integrado de PDF e imágenes (Lightbox)
+  const [mediaViewer, setMediaViewer] = useState<{
+    isOpen: boolean
+    type: 'image' | 'pdf' | null
+    url: string
+    title: string
+    fileSize?: number
+  }>({
+    isOpen: false,
+    type: null,
+    url: '',
+    title: '',
+  })
+
+  // Buscador de mensajes dentro de la conversación actual (Ctrl + F)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Mensaje al que se está respondiendo (Citar / Quote)
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+
+  // Mensajes fijados en el Canal de Difusión
+  const [pinnedBroadcastIds, setPinnedBroadcastIds] = useState<number[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mensajero_pinned_broadcasts') || '[]')
+    } catch {
+      return []
+    }
+  })
+
+  const togglePinBroadcast = (msgId: number) => {
+    setPinnedBroadcastIds((prev) => {
+      const next = prev.includes(msgId) ? prev.filter((id) => id !== msgId) : [...prev, msgId]
+      try {
+        localStorage.setItem('mensajero_pinned_broadcasts', JSON.stringify(next))
+      } catch {
+        // Ignored
+      }
+      return next
+    })
+  }
+
+  // Coincidencias de búsqueda en la conversación actual
+  const searchMatches = useMemo(() => {
+    if (!searchQuery.trim()) return []
+    const q = searchQuery.toLowerCase().trim()
+    return messages
+      .filter((m) => (m.content && m.content.toLowerCase().includes(q)) || (m.file_name && m.file_name.toLowerCase().includes(q)))
+      .map((m) => m.id)
+  }, [messages, searchQuery])
+
+  useEffect(() => {
+    if (searchMatches.length > 0) {
+      setActiveMatchIndex(0)
+      const matchedId = searchMatches[0]
+      document.getElementById(`msg-${matchedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [searchMatches])
+
+  const goToNextMatch = () => {
+    if (searchMatches.length === 0) return
+    const nextIdx = (activeMatchIndex + 1) % searchMatches.length
+    setActiveMatchIndex(nextIdx)
+    const matchedId = searchMatches[nextIdx]
+    document.getElementById(`msg-${matchedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  const goToPrevMatch = () => {
+    if (searchMatches.length === 0) return
+    const prevIdx = (activeMatchIndex - 1 + searchMatches.length) % searchMatches.length
+    setActiveMatchIndex(prevIdx)
+    const matchedId = searchMatches[prevIdx]
+    document.getElementById(`msg-${matchedId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  // Atajo de teclado global Ctrl + F para abrir búsqueda en el chat
+  useEffect(() => {
+    const handleGlobalSearchKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        if (activeUser || isBroadcast) {
+          e.preventDefault()
+          setIsSearchOpen(true)
+          setTimeout(() => searchInputRef.current?.focus(), 80)
+        }
+      } else if (e.key === 'Escape' && isSearchOpen) {
+        setIsSearchOpen(false)
+        setSearchQuery('')
+      }
+    }
+    window.addEventListener('keydown', handleGlobalSearchKey)
+    return () => window.removeEventListener('keydown', handleGlobalSearchKey)
+  }, [activeUser, isBroadcast, isSearchOpen])
+
+  // Pegar imágenes o archivos directamente desde el portapapeles (Ctrl + V / Win + Shift + S)
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (isBroadcast && !canPublishBroadcast) return
+    const items = e.clipboardData?.items
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          const blob = item.getAsFile()
+          if (blob) {
+            e.preventDefault()
+            const now = new Date()
+            const dateStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}_${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`
+            const pastedFile = new File([blob], `captura_${dateStr}.png`, { type: blob.type || 'image/png' })
+            try {
+              setIsUploading(true)
+              await onSendFile(pastedFile)
+            } catch (err: any) {
+              alert(`Error al enviar captura: ${err.message}`)
+            } finally {
+              setIsUploading(false)
+            }
+            return
+          }
+        }
+      }
+    }
+
+    const files = e.clipboardData?.files
+    if (files && files.length > 0 && (activeUser || isBroadcast)) {
+      e.preventDefault()
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        try {
+          setIsUploading(true)
+          await onSendFile(file)
+        } catch (err: any) {
+          alert(`Error al enviar archivo pegado: ${err.message}`)
+        } finally {
+          setIsUploading(false)
+        }
+      }
+    }
+  }
 
   const isInitialLoadRef = useRef(true)
   const prevActiveUserIdRef = useRef<number | null>(null)
@@ -233,7 +389,20 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (!inputText.trim()) return
     if (!activeUser && !isBroadcast) return
     if (isBroadcast && !canPublishBroadcast) return
-    onSendMessage(inputText.trim())
+
+    let finalContent = inputText.trim()
+    if (replyingTo) {
+      const author = sanitizeName(replyingTo.sender_name) || (replyingTo.isMine ? 'Tú' : 'Mensaje')
+      const snippet = replyingTo.content
+        ? replyingTo.content.replace(/^> .*?\n\n/s, '').slice(0, 120)
+        : replyingTo.message_type === 'image'
+        ? '📷 Imagen'
+        : '📎 Archivo'
+      finalContent = `> ${author}: ${snippet}\n\n${finalContent}`
+      setReplyingTo(null)
+    }
+
+    onSendMessage(finalContent)
     setInputText('')
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -372,25 +541,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
   }
 
-  // Paste image/file from clipboard (e.g. Win+Shift+S screenshots)
-  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (isBroadcast && !canPublishBroadcast) return
-    const files = e.clipboardData?.files
-    if (files && files.length > 0 && (activeUser || isBroadcast)) {
-      e.preventDefault()
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        try {
-          setIsUploading(true)
-          await onSendFile(file)
-        } catch (err: any) {
-          alert(`Error al enviar archivo pegado: ${err.message}`)
-        } finally {
-          setIsUploading(false)
-        }
-      }
-    }
-  }
+
 
   if (!activeUser && !isBroadcast) {
     return (
@@ -466,8 +617,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               </p>
             </div>
           </div>
-          <div className="hidden lg:flex items-center gap-2 text-slate-400 shrink-0">
-            <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSearchOpen((prev) => !prev)
+                if (!isSearchOpen) setTimeout(() => searchInputRef.current?.focus(), 80)
+              }}
+              title="Buscar mensajes en este chat (Ctrl + F)"
+              className={`p-2 rounded-xl transition cursor-pointer ${
+                isSearchOpen
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Search className="h-4 w-4" />
+            </button>
+            <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
               <Shield className="h-3.5 w-3.5 text-emerald-400" />
               <span>Canal Institucional</span>
             </div>
@@ -533,7 +699,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   )}
                 </div>
 
-                {/* Sector complete below name (not cut, wraps if long, smaller font) */}
+                {/* Sector complete below name */}
                 {sectorLabel && (
                   <div className="mt-0.5 leading-snug">
                     <span
@@ -558,8 +724,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               </div>
             </div>
 
-            <div className="hidden lg:flex items-center gap-2 text-slate-400 shrink-0">
-              <div className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSearchOpen((prev) => !prev)
+                  if (!isSearchOpen) setTimeout(() => searchInputRef.current?.focus(), 80)
+                }}
+                title="Buscar mensajes en este chat (Ctrl + F)"
+                className={`p-2 rounded-xl transition cursor-pointer ${
+                  isSearchOpen
+                    ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Search className="h-4 w-4" />
+              </button>
+              <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs text-slate-300">
                 <Shield className="h-3.5 w-3.5 text-emerald-400" />
                 <span>Cifrado SSL / WSS</span>
               </div>
@@ -568,6 +749,97 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         )
       })()
     ) : null}
+
+      {/* In-Chat Search Bar */}
+      {isSearchOpen && (
+        <div className="flex items-center justify-between gap-2 border-b border-slate-800 bg-slate-950/95 px-3 sm:px-4 py-2 text-xs shrink-0 shadow-lg animate-in slide-in-from-top-1">
+          <div className="flex items-center gap-2 flex-1 max-w-md bg-slate-900/80 border border-slate-800 rounded-xl px-2.5 py-1.5">
+            <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar mensajes o archivos en este chat..."
+              className="w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {searchQuery && (
+              <span className="text-[11px] text-slate-400 px-1 font-mono">
+                {searchMatches.length > 0
+                  ? `${activeMatchIndex + 1} de ${searchMatches.length}`
+                  : 'Sin resultados'}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={goToPrevMatch}
+              disabled={searchMatches.length === 0}
+              title="Mensaje anterior"
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 cursor-pointer"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={goToNextMatch}
+              disabled={searchMatches.length === 0}
+              title="Siguiente mensaje"
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-30 cursor-pointer"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSearchOpen(false)
+                setSearchQuery('')
+              }}
+              title="Cerrar búsqueda (Esc)"
+              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 ml-1 cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pinned Broadcast Banner */}
+      {isBroadcast && pinnedBroadcastIds.length > 0 && (() => {
+        const pinnedList = messages.filter((m) => pinnedBroadcastIds.includes(m.id))
+        if (pinnedList.length === 0) return null
+        const latest = pinnedList[pinnedList.length - 1]
+        return (
+          <div
+            onClick={() => {
+              document.getElementById(`msg-${latest.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }}
+            className="flex items-center justify-between gap-3 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2 text-xs text-amber-200 cursor-pointer hover:bg-amber-500/15 transition shrink-0 select-none"
+            title="Clic para ir al comunicado fijado"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Pin className="h-3.5 w-3.5 text-amber-400 shrink-0 rotate-45" />
+              <span className="font-bold text-amber-300 shrink-0">Comunicado Fijado:</span>
+              <span className="truncate text-slate-200 text-xs">
+                {latest.content || latest.file_name || 'Archivo adjunto'}
+              </span>
+            </div>
+            <span className="text-[10px] text-amber-400 font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 shrink-0">
+              Ver ({pinnedList.length})
+            </span>
+          </div>
+        )
+      })()}
 
       {/* Messages List */}
       <div
@@ -626,12 +898,56 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             const isMine = msg.isMine
             const emojiStyle = getEmojiStyle(msg.content)
             const isPureEmoji = emojiStyle.isOnlyEmoji && !msg.file_url && !isBroadcast
+            const isSearchMatch = searchMatches[activeMatchIndex] === msg.id
+            const hasSearchMatch = searchMatches.includes(msg.id)
 
             return (
               <div
                 key={msg.id}
-                className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
+                id={`msg-${msg.id}`}
+                className={`group relative flex items-end gap-1.5 ${isMine ? 'justify-end' : 'justify-start'} ${
+                  isSearchMatch
+                    ? 'ring-2 ring-amber-400 rounded-2xl p-1 bg-amber-500/10'
+                    : hasSearchMatch
+                    ? 'ring-1 ring-amber-400/40 rounded-2xl'
+                    : ''
+                }`}
               >
+                {/* Reply action button for sender (left side if mine) */}
+                {isMine && (
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition px-1 pb-1 order-first">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplyingTo(msg)
+                        textareaRef.current?.focus()
+                      }}
+                      title="Citar / Responder este mensaje"
+                      className="p-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white transition shadow cursor-pointer"
+                    >
+                      <Reply className="h-3.5 w-3.5" />
+                    </button>
+                    {isBroadcast && canPublishBroadcast && (
+                      <button
+                        type="button"
+                        onClick={() => togglePinBroadcast(msg.id)}
+                        title={
+                          pinnedBroadcastIds.includes(msg.id)
+                            ? 'Desfijar de la cabecera'
+                            : 'Fijar comunicado en la cabecera'
+                        }
+                        className={`p-1.5 rounded-lg transition shadow cursor-pointer ${
+                          pinnedBroadcastIds.includes(msg.id)
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                            : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-amber-300'
+                        }`}
+                      >
+                        <Pin className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div
                   className={`${
                     isBroadcast ? 'w-full max-w-[95%] sm:max-w-[80%]' : 'max-w-[85%] sm:max-w-[70%]'
@@ -691,56 +1007,141 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   {msg.content && (
                     emojiStyle.isOnlyEmoji ? (
                       <div className={`select-text ${emojiStyle.emojiClass}`}>{msg.content}</div>
-                    ) : (
+                    ) : msg.content.startsWith('> ') && msg.content.includes('\n\n') ? (() => {
+                      const doubleNewline = msg.content.indexOf('\n\n')
+                      const quoteHeader = msg.content.slice(2, doubleNewline)
+                      const body = msg.content.slice(doubleNewline + 2)
+                      const colon = quoteHeader.indexOf(':')
+                      const author = colon !== -1 ? quoteHeader.slice(0, colon) : 'Mensaje citado'
+                      const quoteSnippet = colon !== -1 ? quoteHeader.slice(colon + 1).trim() : quoteHeader
+
+                      return (
+                        <div className="space-y-1.5">
+                          <div
+                            className={`rounded-lg px-2.5 py-1 text-xs select-none border-l-4 ${
+                              isMine
+                                ? 'bg-blue-800/40 border-amber-300 text-blue-100'
+                                : 'bg-slate-950/60 border-amber-400 text-slate-300'
+                            }`}
+                          >
+                            <p className="font-bold text-[11px] text-amber-300 truncate">{author}</p>
+                            <p className="line-clamp-2 italic text-[11px] opacity-90">{quoteSnippet}</p>
+                          </div>
+                          <p className="leading-relaxed whitespace-pre-wrap select-text break-words">{body}</p>
+                        </div>
+                      )
+                    })() : (
                       <p className="leading-relaxed whitespace-pre-wrap select-text break-words">{msg.content}</p>
                     )
                   )}
 
-                  {/* Image Attachment */}
+                  {/* Image Attachment with Lightbox Zoom Viewer */}
                   {msg.message_type === 'image' && msg.file_url && (
-                    <div className="group relative mt-2 overflow-hidden rounded-xl border border-white/10">
+                    <div className="group/img relative mt-2 overflow-hidden rounded-xl border border-white/10">
                       <img
                         src={`${serverUrl}${msg.file_url}`}
                         alt={msg.file_name || 'Imagen adjunta'}
                         className="max-h-64 w-full object-cover cursor-pointer hover:brightness-95 transition"
                         loading="lazy"
-                        onClick={() => window.open(`${serverUrl}${msg.file_url}`, '_blank')}
+                        onClick={() =>
+                          setMediaViewer({
+                            isOpen: true,
+                            type: 'image',
+                            url: `${serverUrl}${msg.file_url}`,
+                            title: msg.file_name || 'Imagen adjunta',
+                            fileSize: msg.file_size,
+                          })
+                        }
                       />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDownloadFile(msg.file_url!, msg.file_name || 'imagen.png')
-                        }}
-                        title={`Descargar ${msg.file_name || 'imagen'}`}
-                        className="absolute top-2 right-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/85 hover:bg-slate-950 text-white text-[11px] font-medium backdrop-blur-md opacity-0 group-hover:opacity-100 transition shadow-lg border border-white/15 cursor-pointer"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        <span>Descargar</span>
-                      </button>
+                      <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-0 group-hover/img:opacity-100 transition">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMediaViewer({
+                              isOpen: true,
+                              type: 'image',
+                              url: `${serverUrl}${msg.file_url}`,
+                              title: msg.file_name || 'Imagen adjunta',
+                              fileSize: msg.file_size,
+                            })
+                          }
+                          title="Ver en pantalla completa con zoom"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900/85 hover:bg-slate-950 text-white text-[11px] font-medium backdrop-blur-md shadow-lg border border-white/15 cursor-pointer"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>Ver</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownloadFile(msg.file_url!, msg.file_name || 'imagen.png')
+                          }}
+                          title={`Descargar ${msg.file_name || 'imagen'}`}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-900/85 hover:bg-slate-950 text-white text-[11px] font-medium backdrop-blur-md shadow-lg border border-white/15 cursor-pointer"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          <span>Descargar</span>
+                        </button>
+                      </div>
                     </div>
                   )}
 
-                  {/* File / Document Attachment */}
-                  {msg.message_type === 'file' && msg.file_url && (
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadFile(msg.file_url!, msg.file_name || 'archivo')}
-                      title={`Descargar ${msg.file_name || 'archivo'}`}
-                      className={`mt-2 flex w-full text-left items-center gap-3 rounded-xl p-2.5 transition cursor-pointer ${
-                        isMine ? 'bg-blue-700/60 hover:bg-blue-700' : 'bg-slate-800/80 hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
-                        <FileText className="h-5 w-5" />
+                  {/* File / Document Attachment (With Integrated PDF Viewer) */}
+                  {msg.message_type === 'file' && msg.file_url && (() => {
+                    const isPdf = isPdfFile(msg.file_name, msg.file_mime, msg.file_url)
+                    return (
+                      <div
+                        className={`mt-2 flex w-full items-center justify-between gap-2.5 rounded-xl p-2.5 transition ${
+                          isMine ? 'bg-blue-700/60' : 'bg-slate-800/80'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                              isPdf ? 'bg-rose-500/20 text-rose-300' : 'bg-white/10'
+                            }`}
+                          >
+                            <FileText className="h-5 w-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate font-semibold text-xs">{msg.file_name || 'Archivo adjunto'}</p>
+                            <p className="text-[10px] opacity-75">{formatBytes(msg.file_size)}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {isPdf && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setMediaViewer({
+                                  isOpen: true,
+                                  type: 'pdf',
+                                  url: `${serverUrl}${msg.file_url}`,
+                                  title: msg.file_name || 'Documento PDF',
+                                  fileSize: msg.file_size,
+                                })
+                              }
+                              title="Ver PDF en pantalla sin descargar"
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-200 hover:text-white text-[11px] font-medium border border-rose-500/30 transition cursor-pointer active:scale-95"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              <span>Ver PDF</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadFile(msg.file_url!, msg.file_name || 'archivo')}
+                            title={`Descargar ${msg.file_name || 'archivo'}`}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-medium transition cursor-pointer active:scale-95"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">Descargar</span>
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="truncate font-semibold text-xs">{msg.file_name || 'Archivo adjunto'}</p>
-                        <p className="text-[10px] opacity-75">{formatBytes(msg.file_size)}</p>
-                      </div>
-                      <Download className="h-4 w-4 shrink-0 opacity-80" />
-                    </button>
-                  )}
+                    )
+                  })()}
                   
                   {/* Timestamp & Read Status */}
                   <div
@@ -782,6 +1183,41 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     })()}
                   </div>
                 </div>
+
+                {/* Reply action button for recipient (right side if not mine) */}
+                {!isMine && (
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition px-1 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReplyingTo(msg)
+                        textareaRef.current?.focus()
+                      }}
+                      title="Citar / Responder este mensaje"
+                      className="p-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white transition shadow cursor-pointer"
+                    >
+                      <Reply className="h-3.5 w-3.5" />
+                    </button>
+                    {isBroadcast && canPublishBroadcast && (
+                      <button
+                        type="button"
+                        onClick={() => togglePinBroadcast(msg.id)}
+                        title={
+                          pinnedBroadcastIds.includes(msg.id)
+                            ? 'Desfijar de la cabecera'
+                            : 'Fijar comunicado en la cabecera'
+                        }
+                        className={`p-1.5 rounded-lg transition shadow cursor-pointer ${
+                          pinnedBroadcastIds.includes(msg.id)
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                            : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-amber-300'
+                        }`}
+                      >
+                        <Pin className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })
@@ -815,6 +1251,35 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               onClose={() => setIsEmojiPickerOpen(false)}
               onSelectEmoji={handleInsertEmoji}
             />
+
+            {/* Quote / Replying To preview banner */}
+            {replyingTo && (
+              <div className="flex items-center justify-between gap-2.5 px-3.5 py-2 mb-2 rounded-xl bg-slate-950/90 border-l-4 border-amber-400 border border-slate-800 text-xs shadow-md animate-in slide-in-from-bottom-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Reply className="h-4 w-4 text-amber-400 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-bold text-amber-300 text-[11px]">
+                      Respondiendo a {sanitizeName(replyingTo.sender_name) || (replyingTo.isMine ? 'tu mensaje' : 'este mensaje')}
+                    </p>
+                    <p className="truncate text-slate-300 text-[11px]">
+                      {replyingTo.content
+                        ? replyingTo.content.replace(/^> .*?\n\n/s, '')
+                        : replyingTo.message_type === 'image'
+                        ? '📷 Imagen adjunta'
+                        : `📎 ${replyingTo.file_name || 'Archivo adjunto'}`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReplyingTo(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer shrink-0"
+                  title="Cancelar respuesta"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
 
             <form onSubmit={handleSend} className="flex items-end gap-2">
               {/* Hidden File Picker */}
@@ -871,8 +1336,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   onPaste={handlePaste}
                   placeholder={
                     isBroadcast
-                      ? 'Escribir comunicado institucional para toda la empresa... (Enter para publicar, Shift+Enter para nueva línea)'
-                      : 'Mensaje... (Enter para enviar, Shift+Enter para nueva línea)'
+                      ? 'Escribir comunicado para toda la institución (pega capturas con Ctrl+V)...'
+                      : 'Escribe un mensaje (pega capturas con Ctrl+V)...'
                   }
                   className="w-full resize-none bg-transparent text-[14px] text-white placeholder-slate-500 focus:outline-none max-h-56 overflow-y-auto leading-relaxed"
                 />
@@ -895,6 +1360,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </>
         )}
       </div>
+
+      {/* Integrated PDF and Image Lightbox Modal */}
+      <MediaViewerModal
+        isOpen={mediaViewer.isOpen}
+        type={mediaViewer.type}
+        url={mediaViewer.url}
+        title={mediaViewer.title}
+        fileSize={mediaViewer.fileSize}
+        onClose={() => setMediaViewer((prev) => ({ ...prev, isOpen: false }))}
+        onDownload={handleDownloadFile}
+      />
     </div>
   )
 }

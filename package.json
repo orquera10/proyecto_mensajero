@@ -1,7 +1,7 @@
 {
   "name": "mensajero-institucional",
   "private": true,
-  "version": "1.0.6",
+  "version": "1.0.7",
   "type": "module",
   "description": "Cliente de mensajería institucional",
   "author": "Secretaría de Niñez, Adolescencia y Familia",
