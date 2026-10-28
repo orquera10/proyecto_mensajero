@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
   Search,
   ChevronDown,
@@ -52,8 +52,8 @@ const SectorTreeItem: React.FC<{
   activeUser: User | null
   onSelectUser: (user: User) => void
   collapsedSectors: Record<string, boolean>
-  toggleSector: (key: string) => void
-  toggleBranch: (node: SectorNode) => void
+  toggleSector: (key: string, defaultCollapsed?: boolean) => void
+  toggleBranch: (node: SectorNode, defaultCollapsed?: boolean) => void
   searchQuery: string
   level?: number
 }> = ({
@@ -67,7 +67,14 @@ const SectorTreeItem: React.FC<{
   level = 0,
 }) => {
   const key = String(node.sectorId || 'unassigned')
-  const isCollapsed = Boolean(collapsedSectors[key])
+  // Por defecto al iniciar: el sector principal (raíz) está desplegado (false),
+  // y todos los subsectores están comprimidos (true).
+  const isDefaultCollapsed = level > 0 || Boolean(node.parent_id) || node.sectorId === null
+  const isCollapsed = searchQuery
+    ? false
+    : collapsedSectors[key] !== undefined
+    ? collapsedSectors[key]
+    : isDefaultCollapsed
 
   const getTotalUsersCount = (n: SectorNode): number => {
     return n.users.length + n.children.reduce((acc, c) => acc + getTotalUsersCount(c), 0)
@@ -107,7 +114,7 @@ const SectorTreeItem: React.FC<{
     >
       {/* Sector Header */}
       <div
-        onClick={() => toggleSector(key)}
+        onClick={() => toggleSector(key, isDefaultCollapsed)}
         style={{ paddingLeft: `${Math.max(12, level * 16 + 12)}px` }}
         className={`group/sector flex w-full min-w-0 overflow-hidden items-center justify-between py-2 sm:py-1.5 pr-3 text-left text-sm font-semibold transition cursor-pointer select-none ${
           level === 0
@@ -120,7 +127,7 @@ const SectorTreeItem: React.FC<{
             type="button"
             onClick={(e) => {
               e.stopPropagation()
-              toggleSector(key)
+              toggleSector(key, isDefaultCollapsed)
             }}
             title={isCollapsed ? `Desplegar sector ${node.sectorName}` : `Comprimir sector ${node.sectorName}`}
             className={`p-1 rounded-md transition-colors shrink-0 cursor-pointer ${
@@ -154,7 +161,7 @@ const SectorTreeItem: React.FC<{
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                toggleBranch(node)
+                toggleBranch(node, isDefaultCollapsed)
               }}
               title={
                 isCollapsed
@@ -340,15 +347,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedSectors, setCollapsedSectors] = useState<Record<string, boolean>>({})
+  const hasInitializedCollapseRef = useRef(false)
 
-  const toggleSector = (sectorKey: string) => {
-    setCollapsedSectors((prev) => ({
-      ...prev,
-      [sectorKey]: !prev[sectorKey],
-    }))
+  // Por defecto al iniciar sesión: sólo el sector principal (raíz) queda desplegado,
+  // y todos sus subsectores quedan comprimidos.
+  useEffect(() => {
+    if (sectors.length === 0 || hasInitializedCollapseRef.current) return
+    hasInitializedCollapseRef.current = true
+
+    const initial: Record<string, boolean> = {}
+    for (const s of sectors) {
+      // Si tiene parent_id es un subsector -> comprimido por defecto (true)
+      // Si no tiene parent_id es la raíz principal -> desplegado (false)
+      initial[String(s.id)] = Boolean(s.parent_id)
+    }
+    initial['unassigned'] = true
+    setCollapsedSectors(initial)
+  }, [sectors])
+
+  const toggleSector = (sectorKey: string, defaultCollapsed = false) => {
+    setCollapsedSectors((prev) => {
+      const current = prev[sectorKey] !== undefined ? prev[sectorKey] : defaultCollapsed
+      return {
+        ...prev,
+        [sectorKey]: !current,
+      }
+    })
   }
 
-  const toggleBranch = (targetNode: SectorNode) => {
+  const toggleBranch = (targetNode: SectorNode, defaultCollapsed = false) => {
     const collectKeys = (n: SectorNode): string[] => {
       const keys = [String(n.sectorId || 'unassigned')]
       for (const c of n.children) {
@@ -357,8 +384,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return keys
     }
     const branchKeys = collectKeys(targetNode)
+    const targetKey = String(targetNode.sectorId || 'unassigned')
     setCollapsedSectors((prev) => {
-      const isCurrentlyCollapsed = Boolean(prev[String(targetNode.sectorId || 'unassigned')])
+      const isCurrentlyCollapsed =
+        prev[targetKey] !== undefined ? prev[targetKey] : defaultCollapsed
       const next = { ...prev }
       for (const k of branchKeys) {
         next[k] = !isCurrentlyCollapsed
