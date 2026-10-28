@@ -65,30 +65,30 @@ export const TopBar: React.FC<TopBarProps> = ({
   }
 
   return (
-    <header className="flex h-14 w-full shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-3 sm:px-4 select-none">
+    <header className="flex h-14 w-full shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-2.5 sm:px-4 select-none">
       {/* Brand */}
-      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 shadow-md shadow-blue-600/30">
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 shadow-md shadow-blue-600/30 shrink-0">
           <ShieldCheck className="h-5 w-5 text-white" />
         </div>
-        <div>
-          <h1 className="text-sm font-bold uppercase tracking-wider text-white">
+        <div className="min-w-0">
+          <h1 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-white truncate">
             Mensajero
           </h1>
-          <p className="text-xs text-slate-400 hidden sm:block">Institucional</p>
+          <p className="text-[10px] sm:text-xs text-slate-400 hidden sm:block">Institucional</p>
         </div>
       </div>
 
       {/* User Info & Actions */}
-      <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {/* Admin Dashboard Button (Only for Admins) */}
         {currentUser.role === 'admin' && (
           <button
             onClick={openAdminDashboard}
             title="Abrir Panel de Administración"
-            className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/20 transition cursor-pointer shrink-0"
           >
-            <LayoutDashboard className="h-3.5 w-3.5" />
+            <LayoutDashboard className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
             <span className="hidden md:inline">Panel Admin</span>
           </button>
         )}
@@ -96,8 +96,13 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Status Dropdown */}
         <div className="relative shrink-0">
           <button
-            onClick={() => setShowStatusMenu(!showStatusMenu)}
-            className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-2.5 sm:px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800 transition cursor-pointer max-w-[150px] sm:max-w-[210px] md:max-w-[260px]"
+            type="button"
+            onClick={() => {
+              setShowStatusMenu((prev) => !prev)
+              setShowMuteMenu(false)
+            }}
+            title={`Estado: ${activeOption.label} - ${sanitizeName(currentUser.display_name)}`}
+            className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-slate-800 bg-slate-900 p-1.5 sm:px-2.5 sm:py-1.5 text-sm text-slate-200 hover:bg-slate-800 transition cursor-pointer shrink-0"
           >
             {currentUser.avatar_url ? (
               <div className="relative shrink-0">
@@ -116,14 +121,23 @@ export const TopBar: React.FC<TopBarProps> = ({
                 <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-slate-900 ${activeOption.color}`} />
               </div>
             ) : (
-              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${activeOption.color}`} />
+              <div className="relative flex h-5 w-5 items-center justify-center rounded-full bg-blue-600/30 text-blue-300 font-bold text-[10px] border border-blue-500/30 shrink-0">
+                {sanitizeName(currentUser.display_name).charAt(0).toUpperCase()}
+                <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-slate-900 ${activeOption.color}`} />
+              </div>
             )}
-            <span className="font-medium truncate">{sanitizeName(currentUser.display_name)}</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 ml-0.5" />
+            <span className="font-medium truncate hidden md:inline max-w-[130px] lg:max-w-[180px]">
+              {sanitizeName(currentUser.display_name)}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500 hidden sm:inline ml-0.5" />
           </button>
 
           {showStatusMenu && (
-            <div className="absolute right-0 mt-1 w-44 rounded-xl border border-slate-800 bg-slate-900 py-1.5 shadow-2xl z-50">
+            <div className="absolute right-0 mt-1.5 w-52 max-w-[calc(100vw-1.5rem)] rounded-xl border border-slate-800 bg-slate-900 py-1.5 shadow-2xl z-50 animate-in fade-in slide-in-from-top-1">
+              <div className="px-3 py-2 border-b border-slate-800 mb-1">
+                <p className="font-bold text-xs text-white truncate">{sanitizeName(currentUser.display_name)}</p>
+                <p className="text-[10px] text-slate-400 truncate">@{currentUser.username}</p>
+              </div>
               <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                 Cambiar Estado
               </div>
@@ -148,7 +162,10 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="relative shrink-0">
           <button
             type="button"
-            onClick={() => setShowMuteMenu(!showMuteMenu)}
+            onClick={() => {
+              setShowMuteMenu((prev) => !prev)
+              setShowStatusMenu(false)
+            }}
             title={
               muteRemaining > 0
                 ? `Notificaciones silenciadas (~${muteRemaining} min restantes). Clic para reactivar.`
@@ -173,7 +190,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
 
           {showMuteMenu && (
-            <div className="absolute right-0 mt-1 w-52 rounded-xl border border-slate-800 bg-slate-900 py-1.5 shadow-2xl z-50">
+            <div className="absolute right-0 mt-1.5 w-52 max-w-[calc(100vw-1.5rem)] rounded-xl border border-slate-800 bg-slate-900 py-1.5 shadow-2xl z-50 animate-in fade-in slide-in-from-top-1">
               <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                 <Clock className="h-3 w-3" />
                 <span>Silenciar Notificaciones</span>
@@ -228,7 +245,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           onClick={onOpenSettings}
           title="Configuración"
-          className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer"
+          className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition cursor-pointer shrink-0"
         >
           <Settings className="h-4 w-4" />
         </button>
@@ -238,7 +255,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           <button
             onClick={onLogout}
             title="Cerrar Sesión"
-            className="rounded-lg p-2 text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition cursor-pointer"
+            className="rounded-lg p-2 text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 transition cursor-pointer shrink-0"
           >
             <LogOut className="h-4 w-4" />
           </button>
