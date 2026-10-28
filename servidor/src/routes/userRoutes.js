@@ -26,7 +26,7 @@ userRouter.get('/', authenticateToken, async (req, res) => {
                 WHERE m.sender_id = u.id 
                   AND m.receiver_id = ? 
                   AND m.sender_id != m.receiver_id
-                  AND (m.status != 'read' OR m.is_read IS NULL OR m.is_read = FALSE OR m.is_read = 0)
+                  AND (m.status != 'read' OR m.is_read IS NULL OR m.is_read = FALSE)
               ) as unread_count,
               (
                 SELECT m2.content 

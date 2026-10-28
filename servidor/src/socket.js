@@ -271,7 +271,7 @@ export function initSocketIO(io) {
           `UPDATE messages 
            SET status = 'read', is_read = TRUE 
            WHERE receiver_id = ? AND sender_id = ? 
-             AND (status != 'read' OR is_read IS NULL OR is_read = FALSE OR is_read = 0)`,
+             AND (status != 'read' OR is_read IS NULL OR is_read = FALSE)`,
           [userId, sender_id]
         )
 
