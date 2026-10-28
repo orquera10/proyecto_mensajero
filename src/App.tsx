@@ -84,6 +84,44 @@ export const App: React.FC = () => {
   const usersRef = useRef<User[]>(users)
   usersRef.current = users
 
+  const isSettingsOpenRef = useRef(isSettingsOpen)
+  isSettingsOpenRef.current = isSettingsOpen
+  const isForwardModalOpenRef = useRef(isForwardModalOpen)
+  isForwardModalOpenRef.current = isForwardModalOpen
+  const isStarredModalOpenRef = useRef(isStarredModalOpen)
+  isStarredModalOpenRef.current = isStarredModalOpen
+
+  // Soporte para botón "Atrás" en móviles y gestos de navegación de Android / iOS
+  useEffect(() => {
+    const handlePopState = () => {
+      // 1. Si hay algún modal abierto, cerrarlo sin salir del chat
+      if (isSettingsOpenRef.current) {
+        setIsSettingsOpen(false)
+        return
+      }
+      if (isForwardModalOpenRef.current) {
+        setIsForwardModalOpen(false)
+        setMessageToForward(null)
+        return
+      }
+      if (isStarredModalOpenRef.current) {
+        setIsStarredModalOpen(false)
+        return
+      }
+
+      // 2. Si estamos en un chat o en difusión, volver a la vista de sectores
+      if (activeUserRef.current || isBroadcastActiveRef.current) {
+        setActiveUser(null)
+        setIsBroadcastActive(false)
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [])
+
   // Permisos para publicar en Difusión (Informática y Encargados de Área)
   const canPublishBroadcast = Boolean(
     currentUser?.role === 'admin' ||
@@ -803,6 +841,13 @@ export const App: React.FC = () => {
   // Select Contact & Load Chat History
   const handleSelectUser = useCallback(
     async (user: User) => {
+      // En móviles y navegadores, gestionar historial para que el botón atrás regrese a los sectores
+      if (!activeUserRef.current && !isBroadcastActiveRef.current) {
+        window.history.pushState({ view: 'chat', userId: user.id }, '')
+      } else {
+        window.history.replaceState({ view: 'chat', userId: user.id }, '')
+      }
+
       setIsBroadcastActive(false)
       setActiveUser(user)
       setMessages([])
@@ -859,6 +904,13 @@ export const App: React.FC = () => {
 
   // Select Broadcast Channel & Load Broadcast History
   const handleSelectBroadcast = useCallback(async () => {
+    // En móviles y navegadores, gestionar historial para que el botón atrás regrese a los sectores
+    if (!activeUserRef.current && !isBroadcastActiveRef.current) {
+      window.history.pushState({ view: 'broadcast' }, '')
+    } else {
+      window.history.replaceState({ view: 'broadcast' }, '')
+    }
+
     setIsBroadcastActive(true)
     setActiveUser(null)
     setBroadcastUnreadCount(0)
@@ -1193,9 +1245,54 @@ export const App: React.FC = () => {
 
   // Reenviar mensaje
   const handleForward = (msg: Message) => {
+    window.history.pushState({ view: 'modal', modal: 'forward' }, '')
     setMessageToForward(msg)
     setIsForwardModalOpen(true)
   }
+
+  const handleCloseForward = () => {
+    if (window.history.state?.modal === 'forward') {
+      window.history.back()
+    } else {
+      setIsForwardModalOpen(false)
+      setMessageToForward(null)
+    }
+  }
+
+  const handleOpenSettings = () => {
+    window.history.pushState({ view: 'modal', modal: 'settings' }, '')
+    setIsSettingsOpen(true)
+  }
+
+  const handleCloseSettings = () => {
+    if (window.history.state?.modal === 'settings') {
+      window.history.back()
+    } else {
+      setIsSettingsOpen(false)
+    }
+  }
+
+  const handleOpenStarred = () => {
+    window.history.pushState({ view: 'modal', modal: 'starred' }, '')
+    setIsStarredModalOpen(true)
+  }
+
+  const handleCloseStarred = () => {
+    if (window.history.state?.modal === 'starred') {
+      window.history.back()
+    } else {
+      setIsStarredModalOpen(false)
+    }
+  }
+
+  const handleBackToSidebar = useCallback(() => {
+    if (window.history.state?.view === 'chat' || window.history.state?.view === 'broadcast') {
+      window.history.back()
+    } else {
+      setActiveUser(null)
+      setIsBroadcastActive(false)
+    }
+  }, [])
 
   const handleExecuteForward = async (targetUserId: number, msg: Message) => {
     try {
@@ -1410,9 +1507,9 @@ export const App: React.FC = () => {
           currentUser={currentUser}
           currentPresence={myPresence}
           onPresenceChange={handlePresenceChange}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={handleOpenSettings}
           onLogout={handleLogout}
-          onOpenStarred={() => setIsStarredModalOpen(true)}
+          onOpenStarred={handleOpenStarred}
           starredCount={starredMessages.length}
         />
       </div>
@@ -1442,10 +1539,7 @@ export const App: React.FC = () => {
             onSendFile={handleSendFile}
             onTyping={handleTyping}
             typingUser={isBroadcastActive ? null : typingSender}
-            onBack={() => {
-              setActiveUser(null)
-              setIsBroadcastActive(false)
-            }}
+            onBack={handleBackToSidebar}
             hasMore={isBroadcastActive ? hasMoreBroadcast : hasMoreMessages}
             isLoadingMore={isBroadcastActive ? isLoadingMoreBroadcast : isLoadingMore}
             onLoadMore={handleLoadMore}
@@ -1464,7 +1558,7 @@ export const App: React.FC = () => {
       {/* Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={handleCloseSettings}
         currentConfig={serverConfig}
         currentUser={currentUser}
         onUserUpdated={(updatedUser) => {
@@ -1484,10 +1578,7 @@ export const App: React.FC = () => {
       {/* Reenviar Mensaje Modal */}
       <ForwardModal
         isOpen={isForwardModalOpen}
-        onClose={() => {
-          setIsForwardModalOpen(false)
-          setMessageToForward(null)
-        }}
+        onClose={handleCloseForward}
         message={messageToForward}
         users={users}
         currentUser={currentUser}
@@ -1497,7 +1588,7 @@ export const App: React.FC = () => {
       {/* Mensajes Destacados Modal */}
       <StarredMessagesModal
         isOpen={isStarredModalOpen}
-        onClose={() => setIsStarredModalOpen(false)}
+        onClose={handleCloseStarred}
         starredMessages={starredMessages}
         onUnstar={handleUnstar}
         onClearAll={handleClearAllStarred}
