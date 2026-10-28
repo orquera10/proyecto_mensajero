@@ -144,7 +144,7 @@ function createWindow() {
 }
 
 // IPC Handlers para Notificaciones y Barra de Tareas
-ipcMain.handle('notification:show', (_event, { title, body }) => {
+ipcMain.handle('notification:show', (_event, { title, body, senderId }) => {
   const iconPath = path.join(__dirname, 'icon.ico')
 
   // 1. Mostrar Notificación Nativa de Windows (Toast Banner en la esquina inferior derecha)
@@ -158,12 +158,18 @@ ipcMain.handle('notification:show', (_event, { title, body }) => {
     notification.on('click', () => {
       bringToFront()
       win?.flashFrame(false)
+      if (senderId && win) {
+        win.webContents.send('app:open-chat', senderId)
+      }
     })
     notification.show()
   }
 
   // 2. Traer la aplicación a primer plano y hacer parpadear la barra de tareas
   bringToFront()
+  if (senderId && win) {
+    win.webContents.send('app:open-chat', senderId)
+  }
 })
 
 ipcMain.handle('app:bring-to-front', () => {

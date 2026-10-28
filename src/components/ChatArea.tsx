@@ -142,6 +142,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     setIsEmojiPickerOpen(false)
   }, [activeUser?.id, isBroadcast])
 
+  // Auto-foco en el cuadro de texto al abrir o cambiar de conversación
+  useEffect(() => {
+    if (activeUser || isBroadcast) {
+      const timer = setTimeout(() => {
+        textareaRef.current?.focus()
+      }, 80)
+      return () => clearTimeout(timer)
+    }
+  }, [activeUser?.id, isBroadcast])
+
   useEffect(() => {
     const container = scrollContainerRef.current
     if (!container) return

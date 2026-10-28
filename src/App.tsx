@@ -469,7 +469,12 @@ export const App: React.FC = () => {
           const bodyText =
             message.content || (message.message_type === 'image' ? '📷 Imagen adjunta' : '📎 Archivo adjunto')
 
-          notificationService.notifyIncomingMessage(senderName, bodyText, true)
+          notificationService.notifyIncomingMessage(senderName, bodyText, true, Number(message.sender_id))
+
+          // Si no hay ninguna conversación activa en pantalla, seleccionar y enfocar automáticamente al remitente
+          if (!activeUserRef.current && !isBroadcastActiveRef.current && sender) {
+            handleSelectUser(sender)
+          }
         }
       },
 
@@ -759,6 +764,26 @@ export const App: React.FC = () => {
     },
     [currentUser]
   )
+
+  // Escuchar evento para abrir automáticamente el chat de quien envió un mensaje
+  useEffect(() => {
+    const handleOpenChat = (senderId: number) => {
+      const target = usersRef.current.find((u) => Number(u.id) === Number(senderId))
+      if (target) {
+        handleSelectUser(target)
+      }
+    }
+
+    if (window.electronIPC?.onOpenChat) {
+      window.electronIPC.onOpenChat(handleOpenChat)
+    }
+
+    ;(window as any).__openChatCallback = handleOpenChat
+
+    return () => {
+      delete (window as any).__openChatCallback
+    }
+  }, [handleSelectUser])
 
   // Select Broadcast Channel & Load Broadcast History
   const handleSelectBroadcast = useCallback(async () => {
