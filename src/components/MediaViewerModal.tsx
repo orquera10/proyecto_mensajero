@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   X,
   ZoomIn,
@@ -39,16 +39,29 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
 }) => {
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+
+  // Touch & Drag Tracking Refs
+  const pinchStartDist = useRef(0)
+  const pinchStartZoom = useRef(1)
+  const isDragging = useRef(false)
+  const dragStart = useRef({ x: 0, y: 0 })
+  const lastTap = useRef(0)
+
+  // Mouse Drag Tracking Refs
+  const isMouseDragging = useRef(false)
+  const mouseDragStart = useRef({ x: 0, y: 0 })
 
   // Reset transform when opening or changing media
   useEffect(() => {
     if (isOpen) {
       setZoom(1)
       setRotation(0)
+      setOffset({ x: 0, y: 0 })
     }
   }, [isOpen, url])
 
-  // Escape key listener
+  // Escape key listener & keyboard zoom
   useEffect(() => {
     if (!isOpen) return
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -56,12 +69,17 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
         onClose()
       } else if (type === 'image') {
         if (e.key === '+' || e.key === '=') {
-          setZoom((prev) => Math.min(prev + 0.25, 4))
+          setZoom((prev) => Math.min(prev + 0.25, 5))
         } else if (e.key === '-') {
-          setZoom((prev) => Math.max(prev - 0.25, 0.5))
+          setZoom((prev) => {
+            const next = Math.max(prev - 0.25, 0.5)
+            if (next <= 1) setOffset({ x: 0, y: 0 })
+            return next
+          })
         } else if (e.key === '0') {
           setZoom(1)
           setRotation(0)
+          setOffset({ x: 0, y: 0 })
         }
       }
     }
@@ -69,92 +87,159 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, type, onClose])
 
+  // Wheel zoom
+  const handleWheel = (e: React.WheelEvent) => {
+    if (type !== 'image') return
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.2 : 0.2
+    setZoom((prev) => {
+      const next = Math.min(Math.max(prev + delta, 0.5), 5)
+      if (next <= 1) setOffset({ x: 0, y: 0 })
+      return next
+    })
+  }
+
+  // --- Touch Gestures (Pinch to zoom & Pan with finger) ---
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (type !== 'image') return
+
+    if (e.touches.length === 2) {
+      // 2 fingers: pinch-to-zoom
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      pinchStartDist.current = dist
+      pinchStartZoom.current = zoom
+    } else if (e.touches.length === 1) {
+      // 1 finger: pan or double-tap
+      const touch = e.touches[0]
+      dragStart.current = {
+        x: touch.clientX - offset.x,
+        y: touch.clientY - offset.y,
+      }
+      isDragging.current = true
+
+      // Detect double tap
+      const now = Date.now()
+      if (now - lastTap.current < 300) {
+        if (zoom > 1) {
+          setZoom(1)
+          setOffset({ x: 0, y: 0 })
+        } else {
+          setZoom(2.5)
+        }
+        lastTap.current = 0
+      } else {
+        lastTap.current = now
+      }
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (type !== 'image') return
+
+    if (e.touches.length === 2 && pinchStartDist.current > 0) {
+      // Pinching
+      const currentDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      const scale = currentDist / pinchStartDist.current
+      const newZoom = Math.min(Math.max(pinchStartZoom.current * scale, 0.75), 5)
+      setZoom(newZoom)
+    } else if (e.touches.length === 1 && isDragging.current && zoom > 1) {
+      // Panning while zoomed
+      const touch = e.touches[0]
+      setOffset({
+        x: touch.clientX - dragStart.current.x,
+        y: touch.clientY - dragStart.current.y,
+      })
+    }
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (type !== 'image') return
+
+    if (e.touches.length < 2) {
+      pinchStartDist.current = 0
+    }
+    if (e.touches.length === 0) {
+      isDragging.current = false
+      if (zoom < 1) {
+        setZoom(1)
+        setOffset({ x: 0, y: 0 })
+      }
+    }
+  }
+
+  // --- Mouse Drag to Pan when zoomed ---
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (type !== 'image' || zoom <= 1 || e.button !== 0) return
+    isMouseDragging.current = true
+    mouseDragStart.current = {
+      x: e.clientX - offset.x,
+      y: e.clientY - offset.y,
+    }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isMouseDragging.current) return
+    setOffset({
+      x: e.clientX - mouseDragStart.current.x,
+      y: e.clientY - mouseDragStart.current.y,
+    })
+  }
+
+  const handleMouseUp = () => {
+    isMouseDragging.current = false
+  }
+
   if (!isOpen || !type || !url) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-2 sm:p-4 select-none animate-in fade-in duration-200">
-      {/* Backdrop click to close (only on outer wrapper) */}
-      <div className="absolute inset-0" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md sm:p-4 select-none animate-in fade-in duration-200">
+      {/* Backdrop click to close (desktop only) */}
+      <div className="hidden sm:block absolute inset-0" onClick={onClose} />
 
       <div
-        className={`relative z-10 flex flex-col rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden ${
+        className={`relative z-10 flex flex-col w-full h-full sm:rounded-2xl sm:border sm:border-slate-800 bg-slate-900 shadow-2xl overflow-hidden ${
           type === 'pdf'
-            ? 'w-full max-w-5xl h-[90vh]'
-            : 'max-w-5xl max-h-[92vh] w-auto'
+            ? 'sm:max-w-5xl sm:h-[90vh]'
+            : 'sm:max-w-5xl sm:max-h-[92vh]'
         }`}
       >
-        {/* Header Bar */}
-        <div className="flex h-13 items-center justify-between border-b border-slate-800 bg-slate-950/90 px-4 py-2 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0 mr-4">
+        {/* Header Bar: streamlined so title and size NEVER overlap with action buttons */}
+        <div className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-950/95 px-3 sm:px-4 py-2 shrink-0">
+          {/* File Info */}
+          <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-3">
             {type === 'pdf' ? (
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400 shrink-0">
                 <FileText className="h-4 w-4" />
               </div>
             ) : (
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400 shrink-0">
-                <span className="text-sm font-bold">IMG</span>
+                <span className="text-xs font-bold">IMG</span>
               </div>
             )}
-            <div className="min-w-0">
-              <p className="truncate text-xs sm:text-sm font-semibold text-slate-200 max-w-[220px] sm:max-w-[420px] md:max-w-xl">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs sm:text-sm font-semibold text-slate-200">
                 {title}
               </p>
               {fileSize ? (
-                <p className="text-[10px] text-slate-400">{formatBytes(fileSize)}</p>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  {formatBytes(fileSize)}
+                </p>
               ) : null}
             </div>
           </div>
 
-          {/* Action buttons */}
+          {/* Action buttons (Download, Open Tab, Close) */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {type === 'image' && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setZoom((prev) => Math.max(prev - 0.25, 0.5))}
-                  title="Alejar (-)"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                >
-                  <ZoomOut className="h-4 w-4" />
-                </button>
-                <span className="text-[11px] font-mono text-slate-400 min-w-[42px] text-center">
-                  {Math.round(zoom * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setZoom((prev) => Math.min(prev + 0.25, 4))}
-                  title="Acercar (+)"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRotation((prev) => (prev + 90) % 360)}
-                  title="Girar 90°"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                >
-                  <RotateCw className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setZoom(1)
-                    setRotation(0)
-                  }}
-                  title="Restablecer vista (0)"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
-                <div className="h-4 w-[1px] bg-slate-800 mx-1" />
-              </>
-            )}
-
             <button
               type="button"
               onClick={() => onDownload(url, title)}
-              title="Descargar archivo en la computadora"
+              title="Descargar archivo"
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white text-xs font-medium border border-blue-500/30 transition cursor-pointer active:scale-95"
             >
               <Download className="h-3.5 w-3.5" />
@@ -181,26 +266,107 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
           </div>
         </div>
 
-        {/* Media Content */}
-        <div className="relative flex-1 overflow-auto bg-slate-950/70 flex items-center justify-center p-2">
+        {/* Media Content Area */}
+        <div
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          className={`relative flex-1 overflow-hidden bg-slate-950/80 flex items-center justify-center ${
+            type === 'image' && zoom > 1 ? 'cursor-grab active:cursor-grabbing' : ''
+          }`}
+          style={{ touchAction: type === 'image' ? 'none' : 'auto' }}
+        >
           {type === 'pdf' ? (
-            <iframe
-              src={`${url}#toolbar=1&navpanes=0`}
-              title={title}
-              className="w-full h-full border-0 rounded-b-xl bg-slate-900"
-            />
+            <div className="w-full h-full flex flex-col bg-slate-900">
+              <iframe
+                src={`${url}#view=FitH&toolbar=1&navpanes=0`}
+                title={title}
+                className="w-full flex-1 border-0 bg-slate-900"
+              />
+              {/* Mobile notice & direct download fallback */}
+              <div className="sm:hidden px-3 py-2 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                <span className="truncate mr-2">¿Problemas al ver el PDF?</span>
+                <button
+                  type="button"
+                  onClick={() => window.open(url, '_blank')}
+                  className="text-blue-400 font-semibold underline shrink-0 cursor-pointer"
+                >
+                  Abrir a pantalla completa
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className="flex items-center justify-center min-w-full min-h-full overflow-hidden p-4">
+            <div className="relative w-full h-full flex items-center justify-center p-2 sm:p-4 overflow-hidden">
               <img
                 src={url}
                 alt={title}
                 style={{
-                  transform: `scale(${zoom}) rotate(${rotation}deg)`,
-                  transition: 'transform 0.15s ease-out',
+                  transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom}) rotate(${rotation}deg)`,
+                  transition: isDragging.current || isMouseDragging.current ? 'none' : 'transform 0.15s ease-out',
                 }}
-                className="max-h-[80vh] max-w-full object-contain rounded-lg shadow-lg select-none"
+                className="max-h-[82vh] max-w-full object-contain rounded-lg shadow-2xl select-none"
                 draggable={false}
               />
+
+              {/* Floating Bottom Toolbar for Zoom, Rotate & Reset */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 sm:gap-2 bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-slate-700/70 shadow-2xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoom((prev) => {
+                      const next = Math.max(prev - 0.25, 0.5)
+                      if (next <= 1) setOffset({ x: 0, y: 0 })
+                      return next
+                    })
+                  }}
+                  title="Alejar (-)"
+                  className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-slate-800 transition active:scale-90 cursor-pointer"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </button>
+
+                <span className="text-xs font-mono font-medium text-slate-200 min-w-[40px] text-center">
+                  {Math.round(zoom * 100)}%
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setZoom((prev) => Math.min(prev + 0.25, 5))}
+                  title="Acercar (+)"
+                  className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-slate-800 transition active:scale-90 cursor-pointer"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </button>
+
+                <div className="h-4 w-[1px] bg-slate-700 mx-0.5" />
+
+                <button
+                  type="button"
+                  onClick={() => setRotation((prev) => (prev + 90) % 360)}
+                  title="Girar 90°"
+                  className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-slate-800 transition active:scale-90 cursor-pointer"
+                >
+                  <RotateCw className="h-4 w-4" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoom(1)
+                    setRotation(0)
+                    setOffset({ x: 0, y: 0 })
+                  }}
+                  title="Restablecer (0)"
+                  className="p-1.5 rounded-full text-slate-300 hover:text-white hover:bg-slate-800 transition active:scale-90 cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           )}
         </div>
