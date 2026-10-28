@@ -268,7 +268,10 @@ export function initSocketIO(io) {
         if (!sender_id) return callback?.({ error: 'sender_id requerido' })
 
         await query(
-          `UPDATE messages SET status = 'read', is_read = TRUE WHERE receiver_id = ? AND sender_id = ? AND (status != 'read' OR is_read = FALSE)`,
+          `UPDATE messages 
+           SET status = 'read', is_read = TRUE 
+           WHERE receiver_id = ? AND sender_id = ? 
+             AND (status != 'read' OR is_read IS NULL OR is_read = FALSE OR is_read = 0)`,
           [userId, sender_id]
         )
 

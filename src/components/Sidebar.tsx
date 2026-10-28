@@ -105,13 +105,13 @@ const SectorTreeItem: React.FC<{
       <button
         onClick={() => toggleSector(key)}
         style={{ paddingLeft: `${Math.max(12, level * 14 + 10)}px` }}
-        className={`flex w-full items-center justify-between py-2.5 sm:py-2 pr-3 text-left text-xs font-semibold transition cursor-pointer ${
+        className={`flex w-full min-w-0 overflow-hidden items-center justify-between py-2.5 sm:py-2 pr-3 text-left text-xs font-semibold transition cursor-pointer ${
           level === 0
             ? 'text-slate-200 hover:bg-slate-800/60'
             : 'text-slate-300 hover:bg-slate-800/40 rounded-lg'
         }`}
       >
-        <div className="flex items-center gap-2 truncate">
+        <div className="flex items-center gap-2 truncate min-w-0">
           {isCollapsed ? (
             <ChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0" />
           ) : (
@@ -160,7 +160,7 @@ const SectorTreeItem: React.FC<{
                 onClick={() => onSelectUser(user)}
                 title={`${displayName}${user.sector_short_path ? ` • ${user.sector_short_path}` : ''}`}
                 style={{ paddingLeft: `${Math.max(10, level * 12 + 8)}px` }}
-                className={`flex w-full items-center gap-3 rounded-lg py-2.5 sm:py-2 pr-2.5 min-h-[48px] active:scale-[0.99] text-left transition cursor-pointer ${
+                className={`flex w-full min-w-0 overflow-hidden items-center gap-3 rounded-lg py-2.5 sm:py-2 pr-2.5 min-h-[48px] active:scale-[0.99] text-left transition cursor-pointer ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                     : 'hover:bg-slate-800/70 text-slate-300'
@@ -436,7 +436,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const onlineUsers = otherUsers.filter((u) => u.presence !== 'offline').length
 
   return (
-    <aside className="flex h-full w-full shrink-0 flex-col border-r border-slate-800 bg-slate-900/95">
+    <aside className="flex h-full w-full shrink-0 flex-col border-r border-slate-800 bg-slate-900/95 overflow-hidden">
       {/* Search Header */}
       <div className="shrink-0 p-4 border-b border-slate-800">
         <div className="flex items-center justify-between mb-3">

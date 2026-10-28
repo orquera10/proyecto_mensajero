@@ -123,6 +123,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     isInitialLoadRef.current = true
   }
 
+  // Auto-ajustar altura del textarea para mensajes largos o comunicados
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    const scrollH = textarea.scrollHeight
+    // Altura mínima 24px, expande automáticamente hasta 220px (unas 8-10 líneas) antes de hacer scroll
+    const newHeight = Math.min(Math.max(scrollH, 24), 220)
+    textarea.style.height = `${newHeight}px`
+  }, [inputText])
+
   // Evitar que la ventana global sufra scroll o desfase en navegadores móviles al cambiar de chat
   useEffect(() => {
     if (typeof window !== 'undefined' && (window.scrollX !== 0 || window.scrollY !== 0)) {
@@ -184,6 +195,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (isBroadcast && !canPublishBroadcast) return
     onSendMessage(inputText.trim())
     setInputText('')
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -803,10 +817,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   onPaste={handlePaste}
                   placeholder={
                     isBroadcast
-                      ? 'Escribir comunicado institucional para toda la empresa... (Enter para publicar)'
-                      : 'Mensaje... (Enter para enviar)'
+                      ? 'Escribir comunicado institucional para toda la empresa... (Enter para publicar, Shift+Enter para nueva línea)'
+                      : 'Mensaje... (Enter para enviar, Shift+Enter para nueva línea)'
                   }
-                  className="w-full resize-none bg-transparent text-sm sm:text-xs text-white placeholder-slate-500 focus:outline-none max-h-32"
+                  className="w-full resize-none bg-transparent text-sm sm:text-xs text-white placeholder-slate-500 focus:outline-none max-h-56 overflow-y-auto leading-relaxed"
                 />
               </div>
 

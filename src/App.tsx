@@ -142,9 +142,12 @@ export const App: React.FC = () => {
 
         // Clear unread count for active contact
         setUsers((prev) => {
+          const meId = currentUserRef.current?.id
           const updated = prev.map((u) => (Number(u.id) === Number(activeId) ? { ...u, unreadCount: 0 } : u))
-          const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
-          notificationService.updateUnreadTitle(totalUnread)
+          const totalUnread = updated
+            .filter((u) => Number(u.id) !== Number(meId))
+            .reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+          notificationService.updateUnreadTitle(totalUnread + (broadcastUnreadCountRef.current || 0))
           return updated
         })
 
@@ -181,7 +184,10 @@ export const App: React.FC = () => {
           if (bRes && typeof bRes.unreadCount === 'number') {
             setBroadcastUnreadCount(bRes.unreadCount)
             broadcastUnreadCountRef.current = bRes.unreadCount
-            const directUnread = usersRef.current.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+            const meId = currentUserRef.current?.id
+            const directUnread = usersRef.current
+              .filter((u) => Number(u.id) !== Number(meId))
+              .reduce((acc, u) => acc + (u.unreadCount || 0), 0)
             notificationService.updateUnreadTitle(directUnread + bRes.unreadCount)
           }
         }).catch(console.warn)
@@ -271,13 +277,14 @@ export const App: React.FC = () => {
       setBroadcastUnreadCount(bUnread)
       broadcastUnreadCountRef.current = bUnread
 
+      let computedDirectUnread = 0
       setUsers((prevUsers) => {
         const validUsers = usersRes.users.filter((u) => {
           const uname = (u.username || '').toLowerCase().trim()
           const dname = (u.display_name || '').toLowerCase().trim()
           return uname !== 'admin' && !dname.includes('administrador del sistema') && !dname.includes('administrador sistema')
         })
-        return validUsers.map((u) => {
+        const mapped = validUsers.map((u) => {
           // Merge with presence from backend API or real-time presenceMapRef
           const realtime = presenceMapRef.current[u.id]
           const presence = realtime?.presence || u.presence || 'offline'
@@ -300,16 +307,16 @@ export const App: React.FC = () => {
             lastMessageTime: existing?.lastMessageTime || u.lastMessageTime || undefined,
           }
         })
+
+        const meId = currentUserRef.current?.id
+        computedDirectUnread = mapped
+          .filter((u) => Number(u.id) !== Number(meId))
+          .reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+
+        return mapped
       })
 
-      const totalUnread = usersRes.users
-        .filter((u) => {
-          const uname = (u.username || '').toLowerCase().trim()
-          const dname = (u.display_name || '').toLowerCase().trim()
-          return uname !== 'admin' && !dname.includes('administrador del sistema') && !dname.includes('administrador sistema')
-        })
-        .reduce((acc, u) => acc + (u.unreadCount || 0), 0)
-      notificationService.updateUnreadTitle(totalUnread + bUnread)
+      notificationService.updateUnreadTitle(computedDirectUnread + bUnread)
     } catch (err: any) {
       console.error('Error loading initial data:', err)
     }
@@ -442,7 +449,10 @@ export const App: React.FC = () => {
             }
             return u
           })
-          const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+          const meId = currentUserRef.current?.id
+          const totalUnread = updated
+            .filter((u) => Number(u.id) !== Number(meId))
+            .reduce((acc, u) => acc + (u.unreadCount || 0), 0)
           notificationService.updateUnreadTitle(totalUnread + (broadcastUnreadCountRef.current || 0))
           return updated
         })
@@ -723,8 +733,11 @@ export const App: React.FC = () => {
 
       // Clear unread count for this user
       setUsers((prev) => {
+        const meId = currentUserRef.current?.id
         const updated = prev.map((u) => (Number(u.id) === Number(user.id) ? { ...u, unreadCount: 0 } : u))
-        const totalUnread = updated.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+        const totalUnread = updated
+          .filter((u) => Number(u.id) !== Number(meId))
+          .reduce((acc, u) => acc + (u.unreadCount || 0), 0)
         notificationService.updateUnreadTitle(totalUnread + (broadcastUnreadCountRef.current || 0))
         return updated
       })
@@ -754,7 +767,10 @@ export const App: React.FC = () => {
     setBroadcastUnreadCount(0)
     broadcastUnreadCountRef.current = 0
 
-    const totalDirect = usersRef.current.reduce((acc, u) => acc + (u.unreadCount || 0), 0)
+    const meId = currentUserRef.current?.id
+    const totalDirect = usersRef.current
+      .filter((u) => Number(u.id) !== Number(meId))
+      .reduce((acc, u) => acc + (u.unreadCount || 0), 0)
     notificationService.updateUnreadTitle(totalDirect)
 
     try {
@@ -1173,7 +1189,7 @@ export const App: React.FC = () => {
       {/* Main Container */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sectors and Users Sidebar */}
-        <div className={`h-full ${activeUser || isBroadcastActive ? 'hidden md:flex' : 'flex w-full md:w-80'} shrink-0 flex-col`}>
+        <div className={`h-full ${activeUser || isBroadcastActive ? 'hidden md:flex' : 'flex'} w-full md:w-80 md:min-w-[320px] md:max-w-[320px] shrink-0 flex-col overflow-hidden`}>
           <Sidebar
             users={users}
             sectors={sectors}

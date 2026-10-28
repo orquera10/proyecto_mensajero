@@ -292,7 +292,10 @@ messageRouter.post('/mark-read', authenticateToken, async (req, res) => {
     }
 
     await query(
-      `UPDATE messages SET status = 'read', is_read = TRUE WHERE receiver_id = ? AND sender_id = ? AND (status != 'read' OR is_read = FALSE)`,
+      `UPDATE messages 
+       SET status = 'read', is_read = TRUE 
+       WHERE receiver_id = ? AND sender_id = ? 
+         AND (status != 'read' OR is_read IS NULL OR is_read = FALSE OR is_read = 0)`,
       [currentUserId, from_user_id]
     )
 
