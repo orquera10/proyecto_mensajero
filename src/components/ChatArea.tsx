@@ -483,7 +483,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <div className="min-w-0 flex-1">
                 {/* Contact Name */}
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <h2 className="text-sm font-semibold text-white truncate">
+                  <h2 className="text-base font-semibold text-white truncate">
                     {activeDisplayName}
                   </h2>
                   {activeUser.is_leader && (
@@ -497,7 +497,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 {sectorLabel && (
                   <div className="mt-0.5 leading-snug">
                     <span
-                      className="inline-block text-[10px] sm:text-[11px] font-medium break-words"
+                      className="inline-block text-xs font-medium break-words"
                       style={{ color: activeUser.sector_color || '#93c5fd' }}
                       title={activeUser.sector_full_path || sectorLabel}
                     >
@@ -507,7 +507,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 )}
 
                 {/* Presence status & username */}
-                <p className="text-[10px] sm:text-[11px] text-slate-400 min-w-0 truncate flex items-center gap-1.5 mt-0.5">
+                <p className="text-xs text-slate-400 min-w-0 truncate flex items-center gap-1.5 mt-0.5">
                   <span className={`h-1.5 w-1.5 rounded-full ${presenceColors[activeUser.presence]} shrink-0`} />
                   <span className="truncate">
                     {presenceLabels[activeUser.presence]}
@@ -593,10 +593,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 <div
                   className={`${
                     isBroadcast ? 'w-full max-w-[95%] sm:max-w-[80%]' : 'max-w-[85%] sm:max-w-[70%]'
-                  } rounded-2xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-xs shadow-sm break-words ${
+                  } rounded-2xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-[14.5px] leading-relaxed shadow-sm break-words ${
                     isMine
                       ? 'bg-blue-600 text-white rounded-br-none shadow-blue-600/10'
-                      : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
+                      : 'bg-slate-900 border border-slate-800 text-slate-100 rounded-bl-none'
                   }`}
                 >
                   {/* Broadcast Sender Header (Autor, Sector, Rango) */}
@@ -820,7 +820,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       ? 'Escribir comunicado institucional para toda la empresa... (Enter para publicar, Shift+Enter para nueva línea)'
                       : 'Mensaje... (Enter para enviar, Shift+Enter para nueva línea)'
                   }
-                  className="w-full resize-none bg-transparent text-sm sm:text-xs text-white placeholder-slate-500 focus:outline-none max-h-56 overflow-y-auto leading-relaxed"
+                  className="w-full resize-none bg-transparent text-[14px] text-white placeholder-slate-500 focus:outline-none max-h-56 overflow-y-auto leading-relaxed"
                 />
               </div>
 

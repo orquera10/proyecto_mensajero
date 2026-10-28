@@ -206,7 +206,7 @@ const SectorTreeItem: React.FC<{
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 truncate">
                       <span
-                        className={`truncate text-xs ${
+                        className={`truncate text-[13.5px] ${
                           user.unreadCount && user.unreadCount > 0 && !isActive
                             ? 'font-bold text-white'
                             : 'font-semibold'
@@ -217,7 +217,7 @@ const SectorTreeItem: React.FC<{
                       {user.is_leader && (
                         <span title="Encargado del Sector" className="inline-flex items-center">
                           <Star
-                            className={`h-3 w-3 shrink-0 ${
+                            className={`h-3.5 w-3.5 shrink-0 ${
                               isActive ? 'text-amber-200 fill-amber-300' : 'text-amber-400 fill-amber-400'
                             }`}
                           />
@@ -226,7 +226,7 @@ const SectorTreeItem: React.FC<{
                     </div>
                     {user.lastMessageTime && (
                       <span
-                        className={`text-[10px] shrink-0 ml-1 ${
+                        className={`text-[11px] shrink-0 ml-1 ${
                           user.unreadCount && user.unreadCount > 0 && !isActive
                             ? 'text-blue-400 font-bold'
                             : isActive
@@ -240,13 +240,13 @@ const SectorTreeItem: React.FC<{
                   </div>
 
                   {searchQuery && user.sector_short_path && (
-                    <p className="truncate text-[10px] text-blue-300/80 font-medium leading-tight">
+                    <p className="truncate text-[11px] text-blue-300/80 font-medium leading-tight">
                       {user.sector_short_path}
                     </p>
                   )}
 
                   <p
-                    className={`truncate text-[11px] ${
+                    className={`truncate text-xs ${
                       user.unreadCount && user.unreadCount > 0 && !isActive
                         ? 'text-blue-200 font-medium'
                         : isActive
