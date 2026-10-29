@@ -68,7 +68,23 @@ userRouter.get('/', authenticateToken, async (req, res) => {
     })
     const usersWithPresence = validRows.map((u) => {
       let snippet = u.last_message_content
-      if (!snippet && u.last_message_type) {
+      if (snippet) {
+        snippet = String(snippet).trim()
+        if (snippet.startsWith('>')) {
+          const parts = snippet.split(/\n\s*\n/)
+          if (parts.length > 1 && parts[1].trim()) {
+            snippet = `↩ ${parts.slice(1).join(' ').trim()}`
+          } else {
+            let quotePart = snippet.replace(/^>\s*/, '').replace(/\[id:\d+\]\s*/gi, '').trim()
+            if (quotePart.startsWith('[') && quotePart.endsWith(']')) {
+              quotePart = quotePart.slice(1, -1).trim()
+            }
+            snippet = `↩ ${quotePart}`
+          }
+        } else {
+          snippet = snippet.replace(/\[id:\d+\]\s*/gi, '').trim()
+        }
+      } else if (u.last_message_type) {
         snippet = u.last_message_type === 'image' ? '📷 Imagen' : '📎 Archivo'
       }
 

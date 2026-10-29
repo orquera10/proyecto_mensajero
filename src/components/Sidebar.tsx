@@ -10,7 +10,7 @@ import {
   ChevronsDownUp,
 } from 'lucide-react'
 import type { User, Sector, PresenceStatus } from '../types'
-import { apiService, sanitizeName, formatMessageTime } from '../services/apiService'
+import { apiService, sanitizeName, formatMessageTime, formatMessageSnippet } from '../services/apiService'
 import { formatSectorName } from '../utils/formatters'
 
 interface SidebarProps {
@@ -300,7 +300,7 @@ const SectorTreeItem: React.FC<{
                         : 'text-slate-400'
                     }`}
                   >
-                    {user.lastMessage || user.statusText || presenceLabels[user.presence]}
+                    {formatMessageSnippet(user.lastMessage) || user.statusText || presenceLabels[user.presence]}
                   </p>
                 </div>
 

@@ -3,6 +3,12 @@ let sectorsCache = []
 let usersCache = []
 let activeConversationPair = null
 
+// Estado de búsqueda y ordenación en panel de administración
+let usersSearchTerm = ''
+let usersSortField = 'username'
+let usersSortDirection = 'asc'
+let sectorsSearchTerm = ''
+
 // Check authentication on load
 document.addEventListener('DOMContentLoaded', () => {
   if (authToken) {
@@ -491,9 +497,65 @@ async function loadSectors() {
   }
 }
 
+function handleSectorsSearch(val) {
+  sectorsSearchTerm = (val || '').trim()
+  const clearBtn = document.getElementById('sectors-search-clear')
+  if (clearBtn) {
+    if (sectorsSearchTerm) {
+      clearBtn.classList.remove('hidden')
+    } else {
+      clearBtn.classList.add('hidden')
+    }
+  }
+  renderSectors()
+}
+
+function clearSectorsSearch() {
+  const input = document.getElementById('sectors-search-input')
+  if (input) input.value = ''
+  handleSectorsSearch('')
+}
+
 function renderSectors() {
   const grid = document.getElementById('sectors-grid')
-  grid.innerHTML = sectorsCache
+  if (!grid) return
+
+  let filtered = sectorsCache
+  if (sectorsSearchTerm) {
+    const q = sectorsSearchTerm.toLowerCase()
+    filtered = filtered.filter((s) => {
+      const name = (s.name || '').toLowerCase()
+      const full = (s.full_path || '').toLowerCase()
+      const desc = (s.description || '').toLowerCase()
+      return name.includes(q) || full.includes(q) || desc.includes(q)
+    })
+  }
+
+  const countBadge = document.getElementById('sectors-count-badge')
+  if (countBadge) {
+    if (sectorsSearchTerm) {
+      countBadge.textContent = `${filtered.length} de ${sectorsCache.length} sectores`
+      countBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/20 text-blue-300'
+    } else {
+      countBadge.textContent = `${sectorsCache.length} sectores`
+      countBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400'
+    }
+  }
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="col-span-1 md:col-span-3 rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center text-slate-400">
+        <div class="flex flex-col items-center justify-center gap-2">
+          <i class="fa-solid fa-folder-open text-3xl text-slate-600"></i>
+          <p class="text-xs font-medium">No se encontraron sectores que coincidan con la búsqueda.</p>
+          ${sectorsSearchTerm ? `<button onclick="clearSectorsSearch()" class="mt-2 text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer">Limpiar búsqueda</button>` : ''}
+        </div>
+      </div>
+    `
+    return
+  }
+
+  grid.innerHTML = filtered
     .map(
       (s) => `
       <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow flex flex-col justify-between">
@@ -573,9 +635,123 @@ function populateAuditUserSelects() {
   if (receiverSelect) receiverSelect.innerHTML = '<option value="">Todos los destinatarios</option>' + options.slice(22)
 }
 
+function handleUsersSearch(val) {
+  usersSearchTerm = (val || '').trim()
+  const clearBtn = document.getElementById('users-search-clear')
+  if (clearBtn) {
+    if (usersSearchTerm) {
+      clearBtn.classList.remove('hidden')
+    } else {
+      clearBtn.classList.add('hidden')
+    }
+  }
+  renderUsers()
+}
+
+function clearUsersSearch() {
+  const input = document.getElementById('users-search-input')
+  if (input) input.value = ''
+  handleUsersSearch('')
+}
+
+function toggleSortUsers(field) {
+  if (usersSortField === field) {
+    usersSortDirection = usersSortDirection === 'asc' ? 'desc' : 'asc'
+  } else {
+    usersSortField = field
+    usersSortDirection = 'asc'
+  }
+  renderUsers()
+}
+
+function updateUsersSortIcons() {
+  const fields = ['username', 'display_name', 'sector', 'role']
+  fields.forEach((f) => {
+    const el = document.getElementById(`sort-icon-${f}`)
+    if (!el) return
+    if (f === usersSortField) {
+      if (usersSortDirection === 'asc') {
+        el.innerHTML = '<i class="fa-solid fa-sort-up text-blue-400"></i>'
+      } else {
+        el.innerHTML = '<i class="fa-solid fa-sort-down text-blue-400"></i>'
+      }
+    } else {
+      el.innerHTML = '<i class="fa-solid fa-sort text-slate-600"></i>'
+    }
+  })
+}
+
 function renderUsers() {
   const tbody = document.getElementById('users-table-body')
-  tbody.innerHTML = usersCache
+  if (!tbody) return
+
+  updateUsersSortIcons()
+
+  // 1. Filtrar usuarios por término de búsqueda
+  let filtered = usersCache
+  if (usersSearchTerm) {
+    const q = usersSearchTerm.toLowerCase()
+    filtered = filtered.filter((u) => {
+      const uname = (u.username || '').toLowerCase()
+      const dname = (u.display_name || '').toLowerCase()
+      const sname = (u.sector_full_path || u.sector_name || '').toLowerCase()
+      const role = (u.role || '').toLowerCase()
+      return uname.includes(q) || dname.includes(q) || sname.includes(q) || role.includes(q)
+    })
+  }
+
+  // 2. Ordenar usuarios según campo y dirección
+  filtered = [...filtered].sort((a, b) => {
+    let valA = ''
+    let valB = ''
+
+    if (usersSortField === 'username') {
+      valA = a.username || ''
+      valB = b.username || ''
+    } else if (usersSortField === 'display_name') {
+      valA = a.display_name || ''
+      valB = b.display_name || ''
+    } else if (usersSortField === 'sector') {
+      valA = a.sector_full_path || a.sector_name || ''
+      valB = b.sector_full_path || b.sector_name || ''
+    } else if (usersSortField === 'role') {
+      valA = a.role || ''
+      valB = b.role || ''
+    }
+
+    const comparison = valA.localeCompare(valB, 'es', { numeric: true, sensitivity: 'base' })
+    return usersSortDirection === 'asc' ? comparison : -comparison
+  })
+
+  // 3. Actualizar badge contador
+  const countBadge = document.getElementById('users-count-badge')
+  if (countBadge) {
+    if (usersSearchTerm) {
+      countBadge.textContent = `${filtered.length} de ${usersCache.length} usuarios`
+      countBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/20 text-blue-300'
+    } else {
+      countBadge.textContent = `${usersCache.length} usuarios`
+      countBadge.className = 'px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-800 text-slate-400'
+    }
+  }
+
+  // 4. Si no hay resultados de búsqueda
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="px-4 py-12 text-center text-slate-400">
+          <div class="flex flex-col items-center justify-center gap-2">
+            <i class="fa-solid fa-user-slash text-2xl text-slate-600"></i>
+            <p class="text-xs font-medium">No se encontraron usuarios que coincidan con la búsqueda.</p>
+            ${usersSearchTerm ? `<button onclick="clearUsersSearch()" class="mt-2 text-xs text-blue-400 hover:text-blue-300 underline cursor-pointer">Limpiar búsqueda</button>` : ''}
+          </div>
+        </td>
+      </tr>
+    `
+    return
+  }
+
+  tbody.innerHTML = filtered
     .map(
       (u) => `
       <tr class="hover:bg-slate-850/50 transition">

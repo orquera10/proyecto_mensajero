@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { apiService, sanitizeName } from './services/apiService'
+import { apiService, sanitizeName, formatMessageSnippet } from './services/apiService'
 import { socketService } from './services/socketService'
 import { storageService } from './services/storageService'
 import { notificationService } from './services/notificationService'
@@ -523,7 +523,7 @@ export const App: React.FC = () => {
               return {
                 ...u,
                 unreadCount: isFromCurrentConversation && isVisible ? 0 : (u.unreadCount || 0) + 1,
-                lastMessage: message.content || (message.message_type === 'image' ? '📷 Imagen' : '📎 Archivo'),
+                lastMessage: formatMessageSnippet(message.content, message.message_type),
                 lastMessageTime: message.created_at,
               }
             }
@@ -546,8 +546,7 @@ export const App: React.FC = () => {
         // Trigger Notification & Sound Alert if message is from someone else
         if (Number(message.sender_id) !== Number(me?.id)) {
           const senderName = sender ? sender.display_name : 'Nuevo Mensaje'
-          const bodyText =
-            message.content || (message.message_type === 'image' ? '📷 Imagen adjunta' : '📎 Archivo adjunto')
+          const bodyText = formatMessageSnippet(message.content, message.message_type)
 
           notificationService.notifyIncomingMessage(senderName, bodyText, true, Number(message.sender_id))
 
@@ -1103,7 +1102,7 @@ export const App: React.FC = () => {
         Number(u.id) === Number(activeUser.id)
           ? {
               ...u,
-              lastMessage: content,
+              lastMessage: formatMessageSnippet(content, 'text'),
               lastMessageTime: optimisticMsg.created_at,
             }
           : u

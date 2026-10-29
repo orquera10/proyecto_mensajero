@@ -36,6 +36,38 @@ export function formatMessageTime(dateStr?: string | null): string {
   }
 }
 
+export function formatMessageSnippet(content?: string, messageType?: string): string {
+  if (!content) {
+    if (messageType === 'image') return '📷 Imagen'
+    if (messageType === 'file') return '📎 Archivo'
+    return ''
+  }
+
+  let text = String(content).trim()
+
+  // Si contiene una cita previa (ej: "> [id:236] Dario Orquera: ..." o "> [id:236] [Dario Orquera: ...]")
+  if (text.startsWith('>')) {
+    const parts = text.split(/\n\s*\n/)
+    if (parts.length > 1) {
+      const replyBody = parts.slice(1).join(' ').trim()
+      if (replyBody) {
+        return `↩ ${replyBody}`
+      }
+    }
+    // Si no hay texto posterior separado, limpiamos el prefijo de cita y el [id:xxx]
+    let quotePart = text.replace(/^>\s*/, '').replace(/\[id:\d+\]\s*/gi, '').trim()
+    // Si quedó envuelto en corchetes "[Nombre: mensaje]"
+    if (quotePart.startsWith('[') && quotePart.endsWith(']')) {
+      quotePart = quotePart.slice(1, -1).trim()
+    }
+    return `↩ ${quotePart}`
+  }
+
+  // Eliminar cualquier etiqueta de ID interno residual
+  text = text.replace(/\[id:\d+\]\s*/gi, '').trim()
+  return text
+}
+
 export const apiService = {
   setToken(token: string) {
     currentToken = token
