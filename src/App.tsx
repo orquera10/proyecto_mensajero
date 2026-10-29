@@ -8,6 +8,7 @@ import { LoginView } from './components/LoginView'
 import { TopBar } from './components/TopBar'
 import { Sidebar } from './components/Sidebar'
 import { ChatArea } from './components/ChatArea'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { SettingsModal } from './components/SettingsModal'
 import { ForwardModal } from './components/ForwardModal'
 import { StarredMessagesModal } from './components/StarredMessagesModal'
@@ -1532,26 +1533,28 @@ export const App: React.FC = () => {
 
         {/* Chat Area */}
         <div className={`h-full flex-1 w-full min-w-0 flex-col ${!activeUser && !isBroadcastActive ? 'hidden md:flex' : 'flex'}`}>
-          <ChatArea
-            activeUser={activeUser}
-            messages={isBroadcastActive ? broadcastMessages : messages}
-            onSendMessage={handleSendMessage}
-            onSendFile={handleSendFile}
-            onTyping={handleTyping}
-            typingUser={isBroadcastActive ? null : typingSender}
-            onBack={handleBackToSidebar}
-            hasMore={isBroadcastActive ? hasMoreBroadcast : hasMoreMessages}
-            isLoadingMore={isBroadcastActive ? isLoadingMoreBroadcast : isLoadingMore}
-            onLoadMore={handleLoadMore}
-            isBroadcast={isBroadcastActive}
-            canPublishBroadcast={canPublishBroadcast}
-            currentUser={currentUser}
-            onForward={handleForward}
-            onEditMessage={handleEditMessage}
-            onDeleteMessage={handleDeleteMessage}
-            starredMessageIds={starredMessageIds}
-            onToggleStar={handleToggleStar}
-          />
+          <ErrorBoundary fallbackTitle="Error al visualizar el chat">
+            <ChatArea
+              activeUser={activeUser}
+              messages={isBroadcastActive ? broadcastMessages : messages}
+              onSendMessage={handleSendMessage}
+              onSendFile={handleSendFile}
+              onTyping={handleTyping}
+              typingUser={isBroadcastActive ? null : typingSender}
+              onBack={handleBackToSidebar}
+              hasMore={isBroadcastActive ? hasMoreBroadcast : hasMoreMessages}
+              isLoadingMore={isBroadcastActive ? isLoadingMoreBroadcast : isLoadingMore}
+              onLoadMore={handleLoadMore}
+              isBroadcast={isBroadcastActive}
+              canPublishBroadcast={canPublishBroadcast}
+              currentUser={currentUser}
+              onForward={handleForward}
+              onEditMessage={handleEditMessage}
+              onDeleteMessage={handleDeleteMessage}
+              starredMessageIds={starredMessageIds}
+              onToggleStar={handleToggleStar}
+            />
+          </ErrorBoundary>
         </div>
       </div>
 
