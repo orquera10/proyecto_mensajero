@@ -380,6 +380,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       window.scrollTo(0, 0)
     }
     setIsEmojiPickerOpen(false)
+    setReplyingTo(null)
+    setMediaViewer((prev) => ({ ...prev, isOpen: false }))
   }, [activeUser?.id, isBroadcast])
 
   // Auto-foco en el cuadro de texto al abrir o cambiar de conversación

@@ -94,7 +94,10 @@ export const App: React.FC = () => {
 
   // Soporte para botón "Atrás" en móviles y gestos de navegación de Android / iOS
   useEffect(() => {
-    const handlePopState = () => {
+    // En la app de escritorio de Windows (Electron) o pantallas de escritorio no se intercepta el historial
+    if (window.electronIPC || window.innerWidth >= 768) return
+
+    const handlePopState = (event: PopStateEvent) => {
       // 1. Si hay algún modal abierto, cerrarlo sin salir del chat
       if (isSettingsOpenRef.current) {
         setIsSettingsOpen(false)
@@ -110,7 +113,13 @@ export const App: React.FC = () => {
         return
       }
 
-      // 2. Si estamos en un chat o en difusión, volver a la vista de sectores
+      // 2. Si el nuevo estado sigue siendo 'chat' o 'broadcast' (por ejemplo al volver de MediaViewer u otro submodal), NO salir del chat
+      const currentView = event.state?.view || window.history.state?.view
+      if (currentView === 'chat' || currentView === 'broadcast') {
+        return
+      }
+
+      // 3. Si desapilamos y ya no estamos en un chat, volver a la vista de sectores
       if (activeUserRef.current || isBroadcastActiveRef.current) {
         setActiveUser(null)
         setIsBroadcastActive(false)
@@ -843,10 +852,12 @@ export const App: React.FC = () => {
   const handleSelectUser = useCallback(
     async (user: User) => {
       // En móviles y navegadores, gestionar historial para que el botón atrás regrese a los sectores
-      if (!activeUserRef.current && !isBroadcastActiveRef.current) {
-        window.history.pushState({ view: 'chat', userId: user.id }, '')
-      } else {
-        window.history.replaceState({ view: 'chat', userId: user.id }, '')
+      if (!window.electronIPC && window.innerWidth < 768) {
+        if (!activeUserRef.current && !isBroadcastActiveRef.current) {
+          window.history.pushState({ view: 'chat', userId: user.id }, '')
+        } else {
+          window.history.replaceState({ view: 'chat', userId: user.id }, '')
+        }
       }
 
       setIsBroadcastActive(false)
@@ -906,10 +917,12 @@ export const App: React.FC = () => {
   // Select Broadcast Channel & Load Broadcast History
   const handleSelectBroadcast = useCallback(async () => {
     // En móviles y navegadores, gestionar historial para que el botón atrás regrese a los sectores
-    if (!activeUserRef.current && !isBroadcastActiveRef.current) {
-      window.history.pushState({ view: 'broadcast' }, '')
-    } else {
-      window.history.replaceState({ view: 'broadcast' }, '')
+    if (!window.electronIPC && window.innerWidth < 768) {
+      if (!activeUserRef.current && !isBroadcastActiveRef.current) {
+        window.history.pushState({ view: 'broadcast' }, '')
+      } else {
+        window.history.replaceState({ view: 'broadcast' }, '')
+      }
     }
 
     setIsBroadcastActive(true)
@@ -1246,48 +1259,51 @@ export const App: React.FC = () => {
 
   // Reenviar mensaje
   const handleForward = (msg: Message) => {
-    window.history.pushState({ view: 'modal', modal: 'forward' }, '')
+    if (!window.electronIPC && window.innerWidth < 768) {
+      window.history.pushState({ view: 'modal', modal: 'forward' }, '')
+    }
     setMessageToForward(msg)
     setIsForwardModalOpen(true)
   }
 
   const handleCloseForward = () => {
-    if (window.history.state?.modal === 'forward') {
+    setIsForwardModalOpen(false)
+    setMessageToForward(null)
+    if (!window.electronIPC && window.innerWidth < 768 && window.history.state?.modal === 'forward') {
       window.history.back()
-    } else {
-      setIsForwardModalOpen(false)
-      setMessageToForward(null)
     }
   }
 
   const handleOpenSettings = () => {
-    window.history.pushState({ view: 'modal', modal: 'settings' }, '')
+    if (!window.electronIPC && window.innerWidth < 768) {
+      window.history.pushState({ view: 'modal', modal: 'settings' }, '')
+    }
     setIsSettingsOpen(true)
   }
 
   const handleCloseSettings = () => {
-    if (window.history.state?.modal === 'settings') {
+    setIsSettingsOpen(false)
+    if (!window.electronIPC && window.innerWidth < 768 && window.history.state?.modal === 'settings') {
       window.history.back()
-    } else {
-      setIsSettingsOpen(false)
     }
   }
 
   const handleOpenStarred = () => {
-    window.history.pushState({ view: 'modal', modal: 'starred' }, '')
+    if (!window.electronIPC && window.innerWidth < 768) {
+      window.history.pushState({ view: 'modal', modal: 'starred' }, '')
+    }
     setIsStarredModalOpen(true)
   }
 
   const handleCloseStarred = () => {
-    if (window.history.state?.modal === 'starred') {
+    setIsStarredModalOpen(false)
+    if (!window.electronIPC && window.innerWidth < 768 && window.history.state?.modal === 'starred') {
       window.history.back()
-    } else {
-      setIsStarredModalOpen(false)
     }
   }
 
   const handleBackToSidebar = useCallback(() => {
-    if (window.history.state?.view === 'chat' || window.history.state?.view === 'broadcast') {
+    if (!window.electronIPC && window.innerWidth < 768 && (window.history.state?.view === 'chat' || window.history.state?.view === 'broadcast')) {
       window.history.back()
     } else {
       setActiveUser(null)

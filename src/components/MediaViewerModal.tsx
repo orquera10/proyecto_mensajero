@@ -87,9 +87,10 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, type, onClose])
 
-  // Soporte para botón Atrás en móviles al estar el visor abierto
+  // Soporte para botón Atrás en móviles al estar el visor abierto (solo en navegadores móviles, nunca en Electron/escritorio)
   useEffect(() => {
     if (!isOpen) return
+    if (window.electronIPC || window.innerWidth >= 768) return
 
     window.history.pushState({ view: 'mediaViewer' }, '')
     const handlePopState = () => {
@@ -102,10 +103,9 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
   }, [isOpen, onClose])
 
   const handleClose = () => {
-    if (window.history.state?.view === 'mediaViewer') {
+    onClose()
+    if (!window.electronIPC && window.innerWidth < 768 && window.history.state?.view === 'mediaViewer') {
       window.history.back()
-    } else {
-      onClose()
     }
   }
 
